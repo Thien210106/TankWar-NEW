@@ -50,14 +50,22 @@
   const MAX_BOTS = 10;
   const MAX_TEAM_BOTS = 9;   // 5v5 = you + 4 allies + 5 enemies
   const BOT_LEVELS = {
-    easy: { label: 'EASY', speed: 55, fire: [2.6, 3.6], aim: .5, react: .9, range: .75, lead: 0, los: false, path: false, dodge: 0, strafe: false, hunt: false, turn: 2.5, think: .8,
-      hint: 'Bot chậm, ngắm lệch, đi thẳng vào tường và bắn cả khi không nhìn thấy mục tiêu. Bot bắn cả bạn lẫn bot khác.' },
-    medium: { label: 'MEDIUM', speed: 78, fire: [1.6, 2.4], aim: .2, react: .6, range: 1.0, lead: 0, los: true, path: true, dodge: 0, strafe: false, hunt: false, turn: 4.5, think: .6,
-      hint: 'Bot biết tìm đường vòng qua tường và chỉ bắn khi nhìn thấy mục tiêu. Bot bắn cả bạn lẫn bot khác.' },
-    hard: { label: 'HARD', speed: 105, fire: [1.0, 1.5], aim: .08, react: .35, range: 1.15, lead: .7, los: true, path: true, dodge: .6, strafe: true, hunt: true, turn: 9, think: .35,
-      hint: 'Bot bắn đón đầu, di chuyển né đạn, giữ khoảng cách. Bot bắn cả bạn lẫn bot khác.' },
-    extreme: { label: 'EXTREME', speed: 132, fire: [.6, .95], aim: .025, react: .15, range: 1.3, lead: 1, los: true, path: true, dodge: 1, strafe: true, hunt: true, turn: 22, think: .2,
-      hint: 'Bot gần nhanh bằng bạn, ngắm gần như chuẩn, né đạn liên tục và săn mục tiêu gần nhất.' }
+    easy: {
+      label: 'EASY', speed: 55, fire: [2.6, 3.6], aim: .5, react: .9, range: .75, lead: 0, los: false, path: false, dodge: 0, strafe: false, hunt: false, turn: 2.5, think: .8,
+      hint: 'Bot chậm, ngắm lệch, đi thẳng vào tường và bắn cả khi không nhìn thấy mục tiêu. Bot bắn cả bạn lẫn bot khác.'
+    },
+    medium: {
+      label: 'MEDIUM', speed: 78, fire: [1.6, 2.4], aim: .2, react: .6, range: 1.0, lead: 0, los: true, path: true, dodge: 0, strafe: false, hunt: false, turn: 4.5, think: .6,
+      hint: 'Bot biết tìm đường vòng qua tường và chỉ bắn khi nhìn thấy mục tiêu. Bot bắn cả bạn lẫn bot khác.'
+    },
+    hard: {
+      label: 'HARD', speed: 105, fire: [1.0, 1.5], aim: .08, react: .35, range: 1.15, lead: .7, los: true, path: true, dodge: .6, strafe: true, hunt: true, turn: 9, think: .35,
+      hint: 'Bot bắn đón đầu, di chuyển né đạn, giữ khoảng cách. Bot bắn cả bạn lẫn bot khác.'
+    },
+    extreme: {
+      label: 'EXTREME', speed: 132, fire: [.6, .95], aim: .025, react: .15, range: 1.3, lead: 1, los: true, path: true, dodge: 1, strafe: true, hunt: true, turn: 22, think: .2,
+      hint: 'Bot gần nhanh bằng bạn, ngắm gần như chuẩn, né đạn liên tục và săn mục tiêu gần nhất.'
+    }
   };
   const botSettings = {
     difficulty: BOT_LEVELS[TEST_GAME.botDifficulty] ? TEST_GAME.botDifficulty : 'medium',
@@ -88,7 +96,9 @@
   const input = { up: false, down: false, left: false, right: false, fire: false, mouseX: WORLD_W / 2, mouseY: WORLD_H / 2, reloadRequest: false, reloadPulse: false };
   const imageFiles = {
     hull: 'assets/img/tank-hull.png', gun: 'assets/img/tank-gun.png',
-    box: 'assets/img/mystery-box.png'
+    box: 'assets/items/mysterybox.png',
+    boxBroken: 'assets/items/mysteryboxbroken.png',
+    rewardBomb: 'assets/items/bomb.png', rewardShield: 'assets/items/shield.png'
   };
   const images = {};
   Object.entries(imageFiles).forEach(([name, src]) => {
@@ -96,6 +106,34 @@
     im.src = src;
     images[name] = im;
   });
+  const loadImage = src => { const image = new Image(); image.src = src; return image; };
+  const heartFrames = [
+    loadImage('assets/items/heart-1.bmp'), loadImage('assets/items/heart-2.png'),
+    loadImage('assets/items/heart-3.png'), loadImage('assets/items/heart-4.bmp')
+  ];
+  const bulletEffectFrames = {
+    LaserBullet: [
+      loadImage('assets/bullets/laser/Sprite_Fire_Shots_Shot_B_000.png'),
+      loadImage('assets/bullets/laser/Sprite_Fire_Shots_Shot_B_001.png'),
+      loadImage('assets/bullets/laser/Sprite_Fire_Shots_Shot_B_002.png')
+    ],
+    ShotgunBullet: [
+      loadImage('assets/bullets/shotgun/Sprite_Fire_Shots_Impact_A_001.png'),
+      loadImage('assets/bullets/shotgun/Sprite_Fire_Shots_Impact_A_002.png'),
+      loadImage('assets/bullets/shotgun/Sprite_Fire_Shots_Impact_A_003.png')
+    ],
+    GatlingBullet: [
+      loadImage('assets/bullets/gatling/Sprite_Effects_Exhaust_01_000.png'),
+      loadImage('assets/bullets/gatling/Sprite_Effects_Exhaust_01_001.png'),
+      loadImage('assets/bullets/gatling/Sprite_Effects_Exhaust_01_002.png')
+    ],
+    WallPiercingBullet: [
+      loadImage('assets/bullets/piercing/Sprite_Fire_Shots_Shot_A_000.png'),
+      loadImage('assets/bullets/piercing/Sprite_Fire_Shots_Shot_A_001.png'),
+      loadImage('assets/bullets/piercing/Sprite_Fire_Shots_Shot_A_002.png'),
+      loadImage('assets/bullets/piercing/Sprite_Fire_Shots_Shot_A_003.png')
+    ]
+  };
   // Hull / gun picked in the garage. Other tanks keep the default sprites.
   const partImages = {};
   function partImage(kind, id) {
@@ -147,6 +185,7 @@
   let audioUnlocked = false;
   let currentMusic = '';
   let lastCountdownSecond = null;
+  let countdownAudio = null;
   let roundOverlayAction = null;
   let localGame = null;
   let localMap = null;
@@ -156,6 +195,10 @@
   let selectedGunId = '05';
   let tankLoadoutConfirmed = false;
   let tankSelectReturn = 'home';
+  // Online rooms use a separate pre-match draft.  It deliberately never
+  // reuses the bot settings shown for local practice.
+  let mapSelectMode = 'offline';
+  let onlineDraft = { players: [], maxPlayers: 4, mode: 'ffa', votes: {}, teams: {}, stage: 'lobby' };
   let mapLoadError = '';
   let lastOnlineUiUpdate = 0;
   let isPaused = false;
@@ -179,12 +222,14 @@
   const streakTracker = new Map();
   const lastKnownStreak = new Map();
   const shotVoices = {};
+  let onlineEffects = [];
 
   const MAP_META = {
     forest: { label: 'FOREST', title: 'RỪNG RẬM', accent: '#b9d66a' },
     ruins: { label: 'RUINS', title: 'PHẾ TÍCH', accent: '#d6a77a' },
     depot: { label: 'DEPOT', title: 'KHO HÀNG', accent: '#d7ad65' }
   };
+  const CONTROL_ZONE_MAP = { id: 'camdia', label: 'CẤM ĐỊA', title: 'CHIẾM VÙNG DI ĐỘNG', accent: '#80b8ff', width: 5632, height: 5632 };
   const trainingMaps = new Map();
   const camera = { x: 0, y: 0 };
   // Online maze data always comes from the server snapshot (wsMaze); this is only a fallback.
@@ -193,6 +238,7 @@
   const AUDIO_FILES = {
     menu: 'assets/audio/backgroundmenunew.mp3?v=2', endMenu: 'assets/audio/backgroundmenuend.mp3', game: 'assets/audio/musicongamenew.mp3?v=1',
     click: 'assets/audio/clickmouse.mp3', pickup: 'assets/audio/claimitem.mp3',
+    countdownTick: 'assets/audio/coutdown.mp3',
     explosion: 'assets/audio/explosion.mp3', winner: 'assets/audio/gamewinner.mp3', gameover: 'assets/audio/gameover.mp3',
     // Team modes (2v2 / 3v3 / 4v4 / 5v5) use their own end jingles; winner / gameover above are for free-for-all.
     winner2: 'assets/audio/gamewinner2.mp3', gameover2: 'assets/audio/gameover2.mp3',
@@ -299,7 +345,7 @@
     gameTrack._i = ((index % list.length) + list.length) % list.length;
     gameTrack.src = list[gameTrack._i];
     gameTrack.load();
-    if (soundEnabled && audioUnlocked && screenName === 'game' && !battleMusicStopped) gameTrack.play().catch(() => {});
+    if (soundEnabled && audioUnlocked && screenName === 'game' && !battleMusicStopped) gameTrack.play().catch(() => { });
   }
   if (gameTrack._list.length > 1) {
     gameTrack.src = gameTrack._list[gameTrack._i];
@@ -326,6 +372,67 @@
       image.src = `assets/maps/${id}_maze_4096.png`;
       trainingMaps.set(id, normaliseTrainingMap(id, source, image));
     }));
+    trainingMaps.set(CONTROL_ZONE_MAP.id, createControlZoneMap());
+  }
+
+  function controlZoneImage(file) {
+    const image = new Image();
+    image.src = `assets/maps/${file}`;
+    return image;
+  }
+
+  // A dedicated 5632 x 5632 battlefield for Cấm Địa.  Every supplied terrain
+  // image is stamped repeatedly across the map in an 8 x 8 terrain grid; this
+  // deliberately avoids turning four source files into four huge colour
+  // quadrants.  Scenery is drawn from the supplied forest, ruins and depot
+  // assets instead of a generated texture.
+  function createControlZoneMap() {
+    const art = {
+      slate: controlZoneImage('camdia_slate.png'), charcoal: controlZoneImage('camdia_charcoal.png'),
+      olive: controlZoneImage('camdia_olive.png'), rust: controlZoneImage('camdia_rust.png'),
+      rock: controlZoneImage('control-zone-props/rock.png'), bush: controlZoneImage('control-zone-props/bush.png'),
+      tree: controlZoneImage('control-zone-props/tree.png'), ruin: controlZoneImage('control-zone-props/ruin.png'),
+      container: controlZoneImage('control-zone-props/container.png')
+    };
+    const terrainSize = 704;
+    const terrainKeys = ['slate', 'charcoal', 'olive', 'rust'];
+    const terrainPatches = [];
+    for (let row = 0; row < 8; row += 1) {
+      for (let col = 0; col < 8; col += 1) {
+        // A stable, low-frequency pattern produces natural groups of ground
+        // types instead of a noisy checkerboard, while using each texture
+        // many times throughout the 5632 x 5632 map.
+        const field = Math.sin(col * 1.41 + row * .53)
+          + Math.cos(row * 1.17 - col * .31)
+          + Math.sin((col + row) * .72) * .42;
+        const key = field > 1.08 ? terrainKeys[3]
+          : field > .28 ? terrainKeys[2]
+            : field > -.64 ? terrainKeys[1] : terrainKeys[0];
+        terrainPatches.push({ key, x: col * terrainSize, y: row * terrainSize, size: terrainSize });
+      }
+    }
+    const scene = [
+      ['tree', 830, 470, 270, 0], ['tree', 215, 1040, 250, 0],
+      ['rocks', 1080, 1660, 250, 0], ['bushes', 510, 2500, 390, 0],
+      ['container', 2170, 1290, 340, Math.PI / 2], ['bushes', 2080, 2020, 280, 0],
+      ['rocks', 2350, 2810, 230, 0], ['container', 1480, 3250, 340, Math.PI / 2],
+      ['ruin', 3650, 1570, 360, 0], ['ruin', 3310, 2260, 330, 0],
+      ['bushes', 3430, 1120, 310, 0], ['container', 4260, 3500, 340, Math.PI / 2],
+      ['bushes', 4720, 3750, 400, 0], ['rocks', 3580, 4030, 230, 0],
+      ['ruin', 2030, 4450, 350, 0], ['ruin', 1420, 5050, 350, 0],
+      ['bushes', 1900, 5200, 260, 0], ['container', 3390, 4950, 340, Math.PI / 2],
+      ['rocks', 4600, 4680, 260, 0], ['tree', 5260, 5370, 250, 0], ['tree', 4870, 5480, 240, 0]
+    ];
+    const collisionRects = scene.filter(([kind]) => !['tree'].includes(kind)).map(([, x, y, size]) => ({
+      x: x - size * .35, y: y - size * .28, width: size * .7, height: size * .56, kind: 'scenery'
+    }));
+    return {
+      ...CONTROL_ZONE_MAP,
+      cellSize: 352, gridOffset: 0, tankSize: LOCAL_TANK_SIZE, tankScale: 1,
+      wallThickness: LOCAL_WALL_THICKNESS, wallRects: [], blockedRects: [], collisionRects,
+      spawns: [{ vx: 410, vy: 410 }, { vx: 5222, vy: 5222 }, { vx: 5222, vy: 410 }, { vx: 410, vy: 5222 }],
+      art, scene, terrainPatches, _nav: null
+    };
   }
 
   function normaliseTrainingMap(id, source, background) {
@@ -386,7 +493,7 @@
     audio.pause();
     audio.currentTime = 0;
     audio.volume = volume;
-    audio.play().catch(() => {});
+    audio.play().catch(() => { });
     const maxMs = SHOT_MAX_MS[name] || 800;
     voice.timer = setTimeout(() => {
       let level = volume;
@@ -431,7 +538,7 @@
   function preloadVoices() {
     Object.keys(AUDIO_FILES).forEach(name => {
       if (voiceTemplates[name] || !/^(slain|defeated|enemyDefeated|allyDefeated|doubleKill|tripleKill|quadraKill|pentaKill|firstBlood|firstBloodAlert|allyKillAlert|shutdown|matchPoint|ace|ultimate|onslaught|bloodbath|dominating|legendary|enemy[A-Z].*)$/.test(name)) return;
-      const a = new Audio(AUDIO_FILES[name]); a.preload = 'auto'; try { a.load(); } catch (e) {}
+      const a = new Audio(AUDIO_FILES[name]); a.preload = 'auto'; try { a.load(); } catch (e) { }
       voiceTemplates[name] = a;
       loadFxBuffer(name);
     });
@@ -443,7 +550,7 @@
     const finish = () => { if (finished) return; finished = true; clearTimeout(guard); if (done) done(); };
     if (!soundEnabled || !audioUnlocked || !AUDIO_FILES[name]) { finish(); return; }
     if (currentVoice) { currentVoice.pause(); currentVoice = null; }
-    if (currentVoiceNode) { try { currentVoiceNode.onended = null; currentVoiceNode.stop(); } catch (e) {} currentVoiceNode = null; }
+    if (currentVoiceNode) { try { currentVoiceNode.onended = null; currentVoiceNode.stop(); } catch (e) { } currentVoiceNode = null; }
     if (fxBuffers[name]) {
       guard = setTimeout(finish, VOICE_MAX_MS);
       currentVoiceNode = playFxBuffer(name, volume, finish);
@@ -474,7 +581,7 @@
     if (playFxBuffer(name, volume)) return;
     const sound = voiceTemplates[name] ? voiceTemplates[name].cloneNode(true) : new Audio(AUDIO_FILES[name]);
     sound.volume = volume;
-    sound.play().catch(() => {});
+    sound.play().catch(() => { });
   }
   // Delay (ms) between each alert sound and the announcer voice that follows it (the banner and the alert always start together).
   // 0 = the voice starts with the alert. A short gap (about 100-200 ms) keeps the two from blurring into one.
@@ -505,7 +612,7 @@
     announceBusy = false;
     clearTimeout(announceTimer);
     if (currentVoice) { currentVoice.pause(); currentVoice = null; }
-    if (currentVoiceNode) { try { currentVoiceNode.onended = null; currentVoiceNode.stop(); } catch (e) {} currentVoiceNode = null; }
+    if (currentVoiceNode) { try { currentVoiceNode.onended = null; currentVoiceNode.stop(); } catch (e) { } currentVoiceNode = null; }
   }
 
   function stopShotSounds() {
@@ -533,7 +640,7 @@
         osc.connect(gain); gain.connect(killAudioCtx.destination);
         osc.start(t); osc.stop(t + .45);
       });
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function unlockAudio() {
@@ -549,7 +656,26 @@
     const sound = new Audio(AUDIO_FILES[name]);
     sound.preload = 'auto';
     sound.volume = volume;
-    sound.play().catch(() => {});
+    sound.play().catch(() => { });
+  }
+
+  // coutdown.mp3 already contains a full countdown cue (about four seconds).
+  // It must start once per countdown, not once per number, otherwise the clips overlap.
+  function startCountdownSound() {
+    if (countdownAudio || !soundEnabled || !audioUnlocked || !AUDIO_FILES.countdownTick) return;
+    const sound = new Audio(AUDIO_FILES.countdownTick);
+    sound.preload = 'auto';
+    sound.volume = .46;
+    sound.addEventListener('ended', () => { if (countdownAudio === sound) countdownAudio = null; }, { once: true });
+    countdownAudio = sound;
+    sound.play().catch(() => { if (countdownAudio === sound) countdownAudio = null; });
+  }
+
+  function stopCountdownSound() {
+    if (!countdownAudio) return;
+    countdownAudio.pause();
+    countdownAudio.currentTime = 0;
+    countdownAudio = null;
   }
 
   // Win / lose jingle: gamewinner / gameover for free-for-all (and online), gamewinner2 / gameover2 for the team modes
@@ -560,7 +686,10 @@
 
   // ---- Full-screen phase overlays (offline): pre-match countdown and the VICTORY / DEFEAT screen ----
   let endSplash = null, countdownBox = null, countdownShown = null;
-  function removeCountdownOverlay() { if (countdownBox) { countdownBox.remove(); countdownBox = null; countdownShown = null; } }
+  function removeCountdownOverlay() {
+    if (countdownBox) { countdownBox.remove(); countdownBox = null; countdownShown = null; }
+    stopCountdownSound();
+  }
   function updateCountdownOverlay(seconds) {
     const n = Math.max(1, Math.ceil(seconds));
     if (!countdownBox) {
@@ -568,6 +697,7 @@
       countdownBox.className = 'phase-overlay countdown';
       countdownBox.innerHTML = '<div class="phase-sub">GAME STARTS IN</div><div class="phase-main"></div>';
       document.body.appendChild(countdownBox);
+      startCountdownSound();
     }
     if (countdownShown !== n) {
       countdownShown = n;
@@ -606,7 +736,7 @@
       movementTrack.currentTime = 0;
       return;
     }
-    movementTrack.play().catch(() => {});
+    movementTrack.play().catch(() => { });
   }
 
   function syncMusicForScreen() {
@@ -620,7 +750,7 @@
     if (soundEnabled && audioUnlocked && currentMusic !== wanted) {
       currentMusic = wanted;
       if (wanted === 'game' && gameTrack._list.length > 1) playGameTrack(gameTrack._i + 1);   // each match starts on the next track
-      else if (musicTracks[wanted]) musicTracks[wanted].play().catch(() => {});
+      else if (musicTracks[wanted]) musicTracks[wanted].play().catch(() => { });
     } else if (!soundEnabled) {
       currentMusic = '';
     }
@@ -676,11 +806,11 @@
   function enterGameplayFullscreen() {
     const root = document.documentElement;
     if (document.fullscreenElement || !root.requestFullscreen) return;
-    root.requestFullscreen().catch(() => {});
+    root.requestFullscreen().catch(() => { });
   }
 
   function leaveGameplayFullscreen() {
-    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => { });
   }
 
   function statusPill(state, text) {
@@ -757,19 +887,18 @@
   function connectOnline() {
     unlockAudio();
     setError('home-error', '');
-    const rawName = $('player-name').value.trim();
+    const rawName = $('player-name').value.trim() || localStorage.getItem('tankwar-name') || 'TankPilot';
     const url = $('server-url').value.trim();
-    if (!rawName) { setError('home-error', 'Hãy nhập tên chiến binh trước khi kết nối.'); $('player-name').focus(); return; }
+    $('player-name').value = rawName;
     if (!/^wss?:\/\//i.test(url)) { setError('home-error', 'Địa chỉ server phải bắt đầu bằng ws:// hoặc wss://'); $('server-url').focus(); return; }
     closeSocket(false);
     username = rawName;
     displayName = rawName;
+    tankLoadoutConfirmed = false;
     localStorage.setItem('tankwar-name', rawName);
     localStorage.setItem('tankwar-server', url);
-    statusPill('connecting', 'ĐANG KẾT NỐI');
     $('online-button').disabled = true;
-    $('online-button').classList.add('is-loading');
-    $('online-button').setAttribute('aria-label', 'Đang kết nối tới server');
+    $('online-button').setAttribute('aria-label', 'Đang mở danh sách phòng');
     let socket;
     try { socket = new WebSocket(url); }
     catch (error) { resetConnectButton(); statusPill('idle', 'CHƯA KẾT NỐI SERVER'); setError('home-error', `Không tạo được kết nối WebSocket: ${error.message}`); return; }
@@ -785,7 +914,7 @@
     socket.addEventListener('open', () => {
       clearTimeout(timeout);
       wsReady = true;
-      statusPill('online', 'ĐÃ KẾT NỐI');
+      statusPill('idle', 'SẴN SÀNG TÌM PHÒNG');
       // The server requires CLogin to be the first client message.
       sendMessage('CLogin', { clUsername: rawName, clDisplayName: displayName });
     });
@@ -802,7 +931,7 @@
     socket.addEventListener('close', () => {
       if (ws !== socket) return;
       wsReady = false; loggedIn = false; resetConnectButton();
-      statusPill('idle', 'ĐÃ NGẮT KẾT NỐI');
+      statusPill('idle', 'SẴN SÀNG KẾT NỐI');
       if (screenName === 'game' && mode === 'online') {
         showOverlay('MẤT KẾT NỐI', 'Kết nối tới Haskell server đã đóng.', 'VỀ TRANG CHỦ', () => { closeSocket(false); showScreen('home'); });
       } else if (screenName !== 'home') {
@@ -819,9 +948,11 @@
 
   function closeSocket(sendLeave = true) {
     if (ws && ws.readyState === WebSocket.OPEN && sendLeave && activeRoom) sendMessage('CLeaveRoom');
-    if (ws) { const old = ws; ws = null; try { old.close(); } catch (_) {} }
+    if (ws) { const old = ws; ws = null; try { old.close(); } catch (_) { } }
     wsReady = false; loggedIn = false; activeRoom = null; isHost = false;
     stopInputSender();
+    statusPill('idle', 'SẴN SÀNG KẾT NỐI');
+    resetConnectButton();
   }
 
   function handleServerMessage(msg) {
@@ -838,7 +969,8 @@
         mode = 'online';
         setError('home-error', '');
         setError('lobby-error', '');
-        $('lobby-subtitle').textContent = `Đã đăng nhập với tên ${displayName}. Chọn phòng để vào trận.`;
+        resetConnectButton();
+        statusPill('idle', 'SẴN SÀNG TÌM PHÒNG');
         showScreen('lobby');
         sendMessage('CListRooms');
         addFeed(`Đã đăng nhập: ${displayName}`);
@@ -872,11 +1004,22 @@
         renderRoomPlayers();
         break;
       }
+      case 'SRoomDraft': {
+        updateOnlineDraft(unwrapOne(data));
+        break;
+      }
+      case 'SDraftOpened': {
+        // The host opened the match flow. Every room member chooses a tank
+        // before casting a map vote, so no one is sent into a practice game.
+        if (activeRoom) openTankSelect('onlineMap');
+        break;
+      }
       case 'SRoomError':
         setError(screenName === 'room' ? 'room-error' : 'lobby-error', stringPayload(data) || 'Thao tác phòng thất bại.');
         break;
       case 'SRoomLeft':
         activeRoom = null; isHost = false; roomPlayerNames = [];
+        statusPill('idle', 'SẴN SÀNG TÌM PHÒNG');
         hideOverlay();
         showScreen('lobby'); sendMessage('CListRooms'); addFeed('Bạn đã rời phòng.');
         break;
@@ -894,9 +1037,16 @@
       case 'SCountdown': {
         const seconds = Number(Array.isArray(data) ? data[0] : data);
         const countdownSecond = Math.max(0, Math.ceil(seconds || 0));
-        lastCountdownSecond = countdownSecond;
+        if (countdownSecond > 0 && lastCountdownSecond === null) startCountdownSound();
+        if (countdownSecond === 0) stopCountdownSound();
+        lastCountdownSecond = countdownSecond || null;
         $('countdown-banner').hidden = false;
         $('countdown-banner').textContent = `TRẬN ĐẤU BẮT ĐẦU SAU ${countdownSecond}…`;
+        break;
+      }
+      case 'SSelectedMap': {
+        selectedMapId = String(Array.isArray(data) ? data[0] : data || 'random');
+        addFeed(`Bản đồ được chọn: ${MAP_LABELS[selectedMapId] || selectedMapId.toUpperCase()}.`);
         break;
       }
       case 'SGameSnapshot': {
@@ -954,6 +1104,7 @@
       }
       case 'SMysteryBoxPickup': {
         const pair = Array.isArray(data) ? data : [];
+        queueOnlineBoxEffects(String(pair[0] || ''), String(pair[1] || 'NormalBullet'));
         playSfx('pickup', .52);
         addFeed(`${pair[0] || 'Người chơi'} nhặt hộp: ${weaponName(pair[1])}.`); break;
       }
@@ -1043,7 +1194,7 @@
         head.append(el('div', `rl-result ${res}`, res === 'win' ? 'VICTORY' : res === 'lose' ? 'DEFEAT' : 'DRAW'));
       }
       box.append(head);
-      const cols = el('div', 'rl-cols'); ['', 'NGƯỜI CHƠI', 'K / D', 'ĐIỂM'].forEach(t => cols.append(el('span', '', t)));
+      const cols = el('div', 'rl-cols');['', 'NGƯỜI CHƠI', 'K / D', 'ĐIỂM'].forEach(t => cols.append(el('span', '', t)));
       box.append(cols);
       gr.list.forEach((p, i) => {
         const row = el('div', `rl-row${p.me ? ' me' : ''}${i === 0 ? ' first' : ''}`);
@@ -1095,6 +1246,7 @@
 
   function onRoomReady() {
     setError('lobby-error', '');
+    statusPill('online', 'ĐÃ VÀO PHÒNG');
     roomPlayerNames = [{ name: username || displayName || 'Bạn', color: isHost ? 'TankRed' : 'TankBlue', self: true, host: isHost }];
     $('room-title').textContent = (readField(activeRoom, 'riRoomName') || 'PHÒNG CHIẾN ĐẤU').toString().toUpperCase();
     $('room-code').textContent = readField(activeRoom, 'riRoomId') || '------';
@@ -1102,10 +1254,9 @@
     $('countdown-banner').hidden = true;
     setError('room-error', '');
     renderRoomPlayers();
-    // The player already picked a loadout before connecting. Keep the server
-    // room flow intact and do not make them choose the same parts twice.
-    if (tankLoadoutConfirmed) showScreen('room');
-    else openTankSelect('room');
+    // A room is a waiting area. The host explicitly starts the pre-match
+    // flow, then everyone goes tank -> map vote together.
+    showScreen('room');
     addFeed(isHost ? 'Đã tạo phòng mới.' : 'Đã tham gia phòng.');
   }
 
@@ -1133,18 +1284,19 @@
     const savedName = $('player-name').value.trim() || username || displayName || localStorage.getItem('tankwar-name') || '';
     $('tank-name').value = savedName;
     const roomId = activeRoom && readField(activeRoom, 'riRoomId');
-    $('garage-room-code').textContent = returnTo === 'offline' ? 'BOT-TEST' : roomId || 'CONNECT';
     $('tank-select-note').textContent = returnTo === 'offline'
       ? 'Sau khi xác nhận xe, chọn độ khó bot, số bot và map thử. Map online vẫn do server ngẫu nhiên.'
+      : returnTo === 'onlineMap'
+        ? 'Chọn xe của bạn, rồi bỏ phiếu chọn chiến trường cùng mọi người trong phòng.'
       : roomId
         ? 'Mã phòng đã được cấp. Map và trạng thái trận online vẫn do server quyết định.'
-        : 'Sau khi xác nhận, bạn sẽ kết nối để tìm hoặc tạo phòng. Map online do server chọn ngẫu nhiên.';
+      : 'Sau khi xác nhận, bạn sẽ vào phòng đã chọn.';
     refreshTankAssembly();
     showScreen('tankSelect');
   }
 
   function closeTankSelect() {
-    if (tankSelectReturn === 'room') showScreen('lobby');
+    if (tankSelectReturn === 'room' || tankSelectReturn === 'onlineMap') showScreen('room');
     else showScreen('home');
   }
 
@@ -1167,13 +1319,18 @@
       connectOnline();
       return;
     }
+    if (tankSelectReturn === 'onlineMap') {
+      sendMessage('CTankReady');
+      openOnlineMapSelect();
+      return;
+    }
     showScreen('room');
   }
 
   function renderRoomList() {
     const root = $('room-list');
     if (!roomList.length) {
-      root.innerHTML = '<div class="empty-state"><span class="empty-icon">⌁</span><strong>CHƯA CÓ PHÒNG NÀO</strong><small>Tạo phòng mới hoặc làm mới danh sách.</small></div>';
+      root.innerHTML = '<div class="empty-state"><span class="empty-icon">⌁</span><strong>CHƯA CÓ PHÒNG NÀO</strong><small>Tạo phòng mới để bắt đầu.</small></div>';
       return;
     }
     root.innerHTML = '';
@@ -1221,8 +1378,8 @@
       if (player.host || (isHost && player.self)) { const host = document.createElement('span'); host.className = 'host-label'; host.textContent = 'CHỦ PHÒNG'; row.append(host); }
       root.append(row);
     });
-    $('start-button').disabled = !isHost || currentCount < 2;
-    $('start-button').title = !isHost ? 'Chỉ chủ phòng mới bắt đầu được' : currentCount < 2 ? 'Cần ít nhất 2 người chơi' : 'Bắt đầu trận đấu';
+    $('start-button').disabled = !isHost || currentCount < 1;
+    $('start-button').title = !isHost ? 'Chỉ chủ phòng mới bắt đầu được' : 'Bắt đầu trận đấu';
   }
 
   function createRoom() {
@@ -1232,7 +1389,7 @@
     const max = Number($('max-players').value || 4);
     const password = $('create-password').value;
     if (!wsReady || !loggedIn) { setError('lobby-error', 'Chưa đăng nhập vào server.'); return; }
-    sendMessage('CCreateRoom', { ccrRoomName: roomName, ccrMaxPlayers: max, ccrPassword: password ? password : null });
+    sendMessage('CCreateRoom', { ccrRoomName: roomName, ccrMaxPlayers: max, ccrPassword: password || null });
   }
 
   function joinRoom() {
@@ -1251,6 +1408,9 @@
     unlockAudio();
     closeSocket(false);
     mode = 'none';
+    mapSelectMode = 'offline';
+    setOnlineMapUi(false);
+    syncOfflineMapChoices();
     setError('map-error', '');
     showScreen('map');
     mapLoadPromise.then(() => {
@@ -1261,8 +1421,128 @@
   // Practice flow: pick a tank -> pick bot difficulty / bot count / map -> match starts.
   function chooseOfflineMap(mapId) {
     unlockAudio();
+    const isControlZone = botSettings.zone && botSettings.teamSize >= 2;
+    // Cấm Địa has exactly one available map.  Never accept a stale click on a
+    // hidden Forest/Ruins/Depot/Random card after its mode has been changed.
+    if (isControlZone && mapId !== 'camdia') return;
+    const chosen = isControlZone ? 'camdia' : mapId;
+    selectedMapId = chosen;
+    startOffline(chosen);
+  }
+
+  function syncOfflineMapChoices() {
+    const zone = botSettings.zone && botSettings.teamSize >= 2;
+    document.querySelectorAll('[data-map]').forEach(button => {
+      // "Ngẫu nhiên" is a room-voting choice only.  It must never remain
+      // visible after returning from the online draft to the local setup.
+      if (button.dataset.map === 'random') { button.hidden = true; return; }
+      button.hidden = zone ? button.dataset.map !== 'camdia' : button.dataset.map === 'camdia';
+    });
+    const heading = document.querySelector('.map-picker-heading');
+    if (mapSelectMode === 'offline' && heading) heading.textContent = zone ? 'CHỌN CẤM ĐỊA' : 'CHỌN CHIẾN TRƯỜNG';
+  }
+
+  // ---------------------------------------------------------------- online map vote
+
+  const MAP_LABELS = { forest: 'FOREST', ruins: 'RUINS', depot: 'DEPOT', random: 'NGẪU NHIÊN' };
+
+  function updateOnlineDraft(payload) {
+    const draft = payload && typeof payload === 'object' ? payload : {};
+    const players = Array.isArray(draft.players) ? draft.players : [];
+    onlineDraft = {
+      players: players.map(player => typeof player === 'string' ? player : (player.username || player.name || 'Người chơi')),
+      maxPlayers: Math.max(2, Number(draft.maxPlayers || onlineDraft.maxPlayers || 4)),
+      // A public room is always split into the two visible sides.  The
+      // number of slots scales with its capacity (five slots per side for a
+      // 10-player room), so players never have to toggle an unexplained
+      // "5V5" switch before picking a side.
+      mode: 'teams',
+      votes: draft.votes && typeof draft.votes === 'object' ? draft.votes : {},
+      teams: draft.teams && typeof draft.teams === 'object' ? draft.teams : {},
+      stage: draft.stage || 'lobby'
+    };
+    if (mapSelectMode === 'online') renderOnlineMatchSetup();
+  }
+
+  function setOnlineMapUi(online) {
+    const mapScreen = $('map-screen');
+    mapScreen.classList.toggle('online-map-mode', online);
+    $('match-setup').hidden = online;
+    $('online-match-setup').hidden = !online;
+    setText('map-settings-title', online ? 'CHỌN ĐỘI' : 'THIẾT LẬP TRẬN');
+    setText('map-settings-subtitle', online ? 'Chọn phe và xem phiếu của cả phòng.' : 'Chọn thông số trước khi vào trận.');
+    document.querySelectorAll('[data-map]').forEach(button => {
+      const isRandom = button.dataset.map === 'random';
+      button.hidden = online ? button.dataset.map === 'camdia' : isRandom;
+      button.classList.toggle('active', online && onlineDraft.votes[username] === button.dataset.map);
+    });
+    const heading = document.querySelector('.map-picker-heading');
+    if (heading) heading.textContent = online ? 'BỎ PHIẾU CHIẾN TRƯỜNG' : 'CHỌN CHIẾN TRƯỜNG';
+  }
+
+  function openOnlineMapSelect() {
+    unlockAudio();
+    if (!wsReady || !activeRoom) { showScreen('room'); return; }
+    mode = 'online';
+    mapSelectMode = 'online';
+    setError('map-error', '');
+    setOnlineMapUi(true);
+    renderOnlineMatchSetup();
+    showScreen('map');
+  }
+
+  function chooseOnlineMap(mapId) {
+    if (!activeRoom || !wsReady) return;
     selectedMapId = mapId;
-    startOffline(mapId);
+    onlineDraft.votes = { ...onlineDraft.votes, [username]: mapId };
+    setOnlineMapUi(true);
+    renderOnlineMatchSetup();
+    sendMessage('CMapVote', { cmvMapId: mapId });
+  }
+
+  function renderOnlineMatchSetup() {
+    const players = onlineDraft.players.length
+      ? onlineDraft.players
+      : roomPlayerNames.map(player => player.name).filter(Boolean);
+    const votes = $('online-player-votes');
+    if (!votes) return;
+    votes.innerHTML = '';
+    const slotCount = Math.max(players.length, Math.min(10, onlineDraft.maxPlayers || 2));
+    for (let index = 0; index < slotCount; index += 1) {
+      const player = players[index] || '';
+      const vote = player ? onlineDraft.votes[player] : '';
+      const row = document.createElement('div');
+      row.className = `online-player-vote${player === username ? ' self' : ''}${!player ? ' waiting' : ''}`;
+      row.innerHTML = `<b>${String(index + 1).padStart(2, '0')}</b><span>${player || 'ĐANG CHỜ'}</span><small>${vote ? MAP_LABELS[vote] : 'CHƯA CHỌN'}</small>`;
+      votes.append(row);
+    }
+    const teamPicker = $('online-team-picker');
+    teamPicker.hidden = false;
+    renderOnlineTeamRow('online-team-blue', 'blue', players);
+    renderOnlineTeamRow('online-team-red', 'red', players);
+    const counts = { forest: 0, ruins: 0, depot: 0, random: 0 };
+    Object.values(onlineDraft.votes).forEach(vote => { if (Object.prototype.hasOwnProperty.call(counts, vote)) counts[vote] += 1; });
+    const choices = Object.entries(counts).filter(([, count]) => count > 0);
+    let leader = 'CHƯA CÓ PHIẾU';
+    if (choices.length) {
+      const max = Math.max(...choices.map(([, count]) => count));
+      const leaders = choices.filter(([, count]) => count === max).map(([map]) => MAP_LABELS[map]);
+      leader = leaders.length > 1 ? `ĐỒNG PHIẾU: ${leaders.join(' / ')}` : `TẠM DẪN: ${leaders[0]} · ${max} PHIẾU`;
+    }
+    setText('online-vote-summary', leader);
+    const start = $('online-start-match');
+    start.hidden = !isHost;
+    start.disabled = !isHost || choices.length === 0;
+    start.textContent = '▶ CHỐT BẢN ĐỒ & BẮT ĐẦU';
+  }
+
+  function renderOnlineTeamRow(id, team, players) {
+    const row = $(id);
+    const teamCapacity = Math.max(1, Math.min(5, Math.ceil((onlineDraft.maxPlayers || 2) / 2)));
+    const members = players.filter(player => onlineDraft.teams[player] === team).slice(0, teamCapacity);
+    row.classList.toggle('selected', onlineDraft.teams[username] === team);
+    const slots = Array.from({ length: teamCapacity }, (_, index) => `<i class="${members[index] ? 'occupied' : ''}" title="${members[index] || 'Trống'}">${members[index] ? members[index].slice(0, 1).toUpperCase() : ''}</i>`).join('');
+    row.querySelector('.team-slots').innerHTML = slots;
   }
 
   async function startOffline(mapId = TEST_GAME.defaultMapId || 'forest') {
@@ -1281,7 +1561,7 @@
     closeSocket(false);
     mode = 'offline'; activeRoom = null; isHost = false;
     selectedMapId = mapId;
-    localMap = botSettings.zone && botSettings.teamSize >= 2 ? makeZoneMap(chosenMap) : chosenMap;   // control zone: a bigger map with a clearing in the middle
+    localMap = chosenMap;
     localGame = createLocalGame(username || 'TankPilot');
     latestSnapshot = localSnapshot();
     resetMatchUi();
@@ -1327,7 +1607,7 @@
       tankAlive: true, tankScore: 0, tankKills: 0, tankDeaths: 0, tankAssists: 0, tankPoints: 0,
       tankKillStreak: 0, tankRespawnTimer: 0, tankInvulnerabilityLeft: 0,
       tankAmmo: RULES.magazineSize, tankMaxAmmo: RULES.magazineSize, tankReloadTimer: 0,
-      _spawn: { ...spawns[i] }, _survival: 0, _multi: { count: 0, last: -999 },
+      _spawn: { ...spawns[i] }, _survival: 0, _powerBuff: 0, _multi: { count: 0, last: -999 },
       _bot: i > 0, _role: Math.random() < .7 ? 'cap' : 'flank', _cooldown: .8 + i * .45, _dirTimer: 0, _direction: Math.random() * Math.PI * 2,
       _prev: { ...spawns[i] }, _v: { vx: 0, vy: 0 }, _think: Math.random() * .3, _path: [], _wp: null, _pathAge: 99, _roam: null,
       _sees: false, _seen: 0, _strafe: Math.random() < .5 ? 1 : -1, _strafeT: 0, _dodge: null, _dodgeT: 0, _dodgeCheck: 0
@@ -1336,14 +1616,20 @@
     camera.x = clamp(spawns[0].vx - view.width / 2, 0, localMap.width - view.width);
     camera.y = clamp(spawns[0].vy - view.height / 2, 0, localMap.height - view.height);
     return {
-      name, tanks, bullets: [], boxes: [], lasers: [], time: 0, boxTimer: 10, startCountdown: 5,
+      name, tanks, bullets: [], boxes: [], effects: [], heartSequence: null, lasers: [], time: 0, boxTimer: 10, startCountdown: 5,
       fireCooldown: 0, gameOver: false, spectatorTankId: '', difficulty: botSettings.difficulty,
       // Team mode state: best-of rounds, every round a death match without respawn.
       team, teamSize, rounds: botSettings.teamRounds, round: 1, wins: [0, 0], roundClock: 0,
       roundOver: false, roundEndTimer: 0, awaitingNext: false, roundResult: null, history: [], teamSeen: [null, null],
       // Control zone state (Cấm Địa): one capture zone in the middle of the map, locked for the first seconds.
       zone: team && botSettings.zone ? {
-        cx: localMap.width / 2, cy: localMap.height / 2, radius: RULES.zoneRadius,
+        // The capture point orbits in the central clearing. Moving it makes
+        // a fixed defensive setup unsustainable while keeping it reachable.
+        anchorX: localMap.width / 2, anchorY: localMap.height / 2,
+        cx: localMap.width / 2, cy: localMap.height / 2,
+        radius: localMap.id === 'camdia' ? 620 : RULES.zoneRadius,
+        orbitRadius: localMap.id === 'camdia' ? 560 : 0,
+        orbitAngle: -Math.PI / 2, orbitPeriod: 52,
         lockLeft: RULES.zoneLockSeconds, open: false, owner: -1, progress: [0, 0], inside: [0, 0],
         overtime: false, hold: 0, holdTeam: -1, shown70: [false, false],
         elapsed: 0, openVoiceDone: false, rateVoiceDone: false   // elapsed = zone clock (starts at 00:00 when the zone opens)
@@ -1411,7 +1697,7 @@
       wsTanks: localGame.tanks.map(publicTank),
       wsBullets: localGame.bullets.map(b => ({ bulPos: b.pos, bulVel: b.vel, bulType: b.type, bulOwnerId: b.owner, bulBounces: b.bounces, bulLifetime: b.life })),
       wsLasers: localGame.lasers,
-      wsMysteryBoxes: localGame.boxes.map(b => ({ mbPos: b.pos, mbActive: true, mbRespawnIn: 0 })),
+      wsMysteryBoxes: localGame.boxes.map(b => ({ mbPos: b.pos, mbActive: true, mbRespawnIn: 0, mbSpawnedAt: b.spawnedAt })),
       wsMaze: maze,
       wsPhase: localGame.gameOver ? { tag: 'MatchOverPhase', contents: localGame.name } : { tag: 'InGamePhase' },
       wsScores: localGame.tanks.map(t => [t.tankId, t.tankPoints])
@@ -1748,6 +2034,7 @@
     }
     if (tank.tankAlive) {
       tank.tankInvulnerabilityLeft = Math.max(0, tank.tankInvulnerabilityLeft - dt);
+      tank._powerBuff = Math.max(0, Number(tank._powerBuff || 0) - dt);
       tank._survival += dt;
       const whole = Math.floor(tank._survival);
       if (whole > 0) { tank.tankPoints += whole * RULES.survivalPoints; tank._survival -= whole; }
@@ -1763,6 +2050,18 @@
 
   function respawnLocalTank(tank) {
     const g = localGame;
+    // Tử chiến has no fixed base: every respawn picks one of the four map
+    // corners. Prefer an unoccupied corner when possible, but still choose
+    // randomly from all four if every corner is contested.
+    if (g && !g.team) {
+      const corners = getLocalSpawns(localMap);
+      const safeCorners = corners.filter(corner => g.tanks.every(other =>
+        other === tank || !other.tankAlive || distance(other.tankPos, corner) > LOCAL_TANK_RADIUS * 5
+      ));
+      const pool = safeCorners.length ? safeCorners : corners;
+      const nextSpawn = pool[Math.floor(Math.random() * pool.length)];
+      if (nextSpawn) tank._spawn = { ...nextSpawn };
+    }
     tank.tankPos = { ...tank._spawn };
     tank.tankVel = { vx: 0, vy: 0 };
     tank.tankAlive = true;
@@ -1771,6 +2070,7 @@
     // A respawned tank always starts with a full magazine and no leftover reload.
     tank.tankAmmo = tank.tankMaxAmmo;
     tank.tankReloadTimer = 0;
+    tank._powerBuff = 0;
     tank._survival = 0;
     tank._cooldown = 1.2;
     tank._prev = { ...tank.tankPos }; tank._v = { vx: 0, vy: 0 };
@@ -1800,7 +2100,7 @@
     victim.tankDeaths++; victim.tankKillStreak = 0;
     victim.tankAlive = false; victim.tankVel = { vx: 0, vy: 0 };
     victim.tankRespawnTimer = g.zone ? RULES.zoneRespawn : g.team ? 0 : RULES.respawnSeconds; victim.tankInvulnerabilityLeft = 0;
-    victim.tankReloadTimer = 0; victim._survival = 0;
+    victim.tankReloadTimer = 0; victim._powerBuff = 0; victim._survival = 0;
     victim._multi = { count: 0, last: -999 };
     const multi = killer._multi;
     multi.count = g.time - multi.last <= RULES.multiKillWindow ? multi.count + 1 : 1;
@@ -1817,6 +2117,84 @@
     announceKill({ killer: killer.tankId, victim: victim.tankId, tier: Math.min(multi.count, 5), streak: killer.tankKillStreak, shutdown, points });
   }
 
+  // Mystery Box rewards are intentionally local to practice mode: the offline
+  // simulator owns its state, so every pickup can immediately affect movement,
+  // firing, shields and team revives without a round-trip to the server.
+  function addLocalEffect(kind, pos, options = {}) {
+    const g = localGame; if (!g || !pos) return;
+    const duration = options.duration ?? 2;
+    g.effects.push({ kind, pos: { ...pos }, owner: options.owner || '', reward: options.reward || '', life: duration, duration });
+  }
+
+  function removeTankWithBomb(tank) {
+    const g = localGame; if (!g || !tank || !tank.tankAlive) return;
+    tank.tankAlive = false; tank.tankVel = { vx: 0, vy: 0 }; tank.tankDeaths++;
+    tank.tankKillStreak = 0; tank.tankRespawnTimer = g.zone ? RULES.zoneRespawn : g.team ? 0 : RULES.respawnSeconds;
+    tank.tankInvulnerabilityLeft = 0; tank.tankReloadTimer = 0; tank._powerBuff = 0; tank._survival = 0;
+    if (tank === g.tanks[0]) {
+      g.spectatorTankId = g.tanks.slice(1).find(other => other.tankAlive)?.tankId || '';
+      input.fire = false; setMovementSound(false); stopShotSounds();
+    }
+    playSfx('explosion', .66 * SFX_MIX.explosion);
+  }
+
+  function reviveOfflineAlly(picker) {
+    const g = localGame;
+    const ally = g && g.team ? g.tanks.find(tank => tank !== picker && tank.team === picker.team && !tank.tankAlive) : null;
+    if (!ally) return false;
+    respawnLocalTank(ally);
+    g.heartSequence = { life: 2, duration: 2 };
+    return true;
+  }
+
+  function collectLocalMysteryBox(picker, box) {
+    const g = localGame; if (!g) return;
+    addLocalEffect('boxBroken', box.pos);
+    const weapons = ['ShotgunBullet', 'LaserBullet', 'WallPiercingBullet', 'GatlingBullet'];
+    const rewards = weapons.concat(['shield', 'power', 'bomb']);
+    if (g.team && g.tanks.some(tank => tank.team === picker.team && !tank.tankAlive)) rewards.push('revive', 'revive');
+    const reward = rewards[Math.floor(Math.random() * rewards.length)];
+    const owner = picker.tankId;
+    if (weapons.includes(reward)) {
+      picker.tankWeapon.wsCurrentWeapon = reward;
+      picker.tankWeapon.wsBuffTimeLeft = 15;
+      addLocalEffect('weapon', box.pos, { owner, reward });
+      addFeed(`Mystery Box: ${weaponName(reward)} trong 15 giây!`);
+    } else if (reward === 'shield') {
+      picker.tankInvulnerabilityLeft = Math.max(picker.tankInvulnerabilityLeft, 5);
+      addLocalEffect('reward', box.pos, { owner, reward });
+      addFeed('Mystery Box: Khiên bất tử trong 5 giây!');
+    } else if (reward === 'power') {
+      picker._powerBuff = 3;
+      addLocalEffect('reward', box.pos, { owner, reward });
+      addFeed('Mystery Box: Tăng tốc chạy và bắn trong 3 giây!');
+    } else if (reward === 'revive' && reviveOfflineAlly(picker)) {
+      addLocalEffect('reward', box.pos, { owner, reward });
+      addFeed('Mystery Box: Đã hồi sinh một đồng đội!');
+    } else {
+      // A bomb reward kills the collector. Its reward art is owner-bound, so it
+      // vanishes in the same frame as the destroyed tank; the broken box stays 2s.
+      addLocalEffect('reward', box.pos, { owner, reward: 'bomb' });
+      removeTankWithBomb(picker);
+      g.effects = g.effects.filter(effect => effect.kind === 'boxBroken' || effect.owner !== owner);
+      addFeed('Mystery Box: BOM! Bạn đã bị phá huỷ.', 'warn');
+    }
+    playSfx('pickup', .58);
+  }
+
+  function updateLocalEffects(dt) {
+    const g = localGame; if (!g) return;
+    g.effects.forEach(effect => { effect.life -= dt; });
+    g.effects = g.effects.filter(effect => {
+      if (effect.life <= 0) return false;
+      return !effect.owner || g.tanks.some(tank => tank.tankId === effect.owner && tank.tankAlive);
+    });
+    if (g.heartSequence) {
+      g.heartSequence.life -= dt;
+      if (g.heartSequence.life <= 0) g.heartSequence = null;
+    }
+  }
+
   function updateOffline(dt) {
     if (!localGame || localGame.gameOver || isPaused || localGame.awaitingNext) return;
     // Pre-match countdown: nobody moves, shoots or scores until it reaches zero.
@@ -1827,7 +2205,7 @@
       if (localGame.startCountdown > 0) updateCountdownOverlay(localGame.startCountdown); else removeCountdownOverlay();
       return;
     }
-    const g = localGame; g.time += dt; g.fireCooldown = Math.max(0, g.fireCooldown - dt);
+    const g = localGame; g.time += dt; g.fireCooldown = Math.max(0, g.fireCooldown - dt); updateLocalEffects(dt);
     if (!g.team && g.time >= botSettings.matchSeconds) { finishLocalMatch(); return; }
     if (g.team && !g.zone && !g.roundOver) g.roundClock += dt;
     const player = g.tanks[0];
@@ -1838,7 +2216,8 @@
       const dx = (input.right ? 1 : 0) - (input.left ? 1 : 0), dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
       if (dx || dy) {
         const len = Math.hypot(dx, dy);
-        const mx = dx / len * 150 * LOCAL_SPEED_SCALE * dt, my = dy / len * 150 * LOCAL_SPEED_SCALE * dt;
+        const speedMultiplier = player._powerBuff > 0 ? 1.55 : 1;
+        const mx = dx / len * 150 * speedMultiplier * LOCAL_SPEED_SCALE * dt, my = dy / len * 150 * speedMultiplier * LOCAL_SPEED_SCALE * dt;
         moveLocalTank(player, mx, my);
         player.tankBodyAngle = Math.atan2(dy, dx);
       }
@@ -1858,7 +2237,8 @@
     if (weapon.wsBuffTimeLeft <= 0 && weapon.wsCurrentWeapon !== 'NormalBullet') weapon.wsCurrentWeapon = 'NormalBullet';
     if (player.tankAlive && input.fire && g.fireCooldown <= 0 && player.tankReloadTimer <= 0 && player.tankAmmo > 0) {
       localShoot(player, player.tankTurretAngle, weapon.wsCurrentWeapon);
-      g.fireCooldown = weapon.wsCurrentWeapon === 'NormalBullet' ? 0.5 : 1.0;
+      const baseFireCooldown = weapon.wsCurrentWeapon === 'NormalBullet' ? 0.5 : 1.0;
+      g.fireCooldown = baseFireCooldown * (player._powerBuff > 0 ? .52 : 1);
       if (g.zone) g.fireCooldown = Math.max(g.fireCooldown, RULES.zoneShotDelay);   // control zone: anti-spam delay between shots
       player.tankAmmo--;
       if (player.tankAmmo === 0) startLocalReload(player);
@@ -1870,15 +2250,13 @@
     g.boxTimer -= dt;
     if (g.boxTimer <= 0 && g.boxes.length === 0) {
       const pt = pickOpenLocalPoint(26);
-      g.boxes.push({ pos: { ...pt }, life: 12 }); g.boxTimer = 22 + Math.random() * 8;
+      g.boxes.push({ pos: { ...pt }, life: 12, spawnedAt: g.time }); g.boxTimer = 22 + Math.random() * 8;
     }
     g.boxes.forEach(box => box.life -= dt); g.boxes = g.boxes.filter(b => b.life > 0);
-    if (player.tankAlive && g.boxes.some(b => distance(b.pos, player.tankPos) < LOCAL_TANK_RADIUS + 28)) {
-      g.boxes = [];
-      const special = ['ShotgunBullet', 'LaserBullet', 'WallPiercingBullet', 'GatlingBullet'][Math.floor(Math.random() * 4)];
-      weapon.wsCurrentWeapon = special; weapon.wsBuffTimeLeft = 15;
-      playSfx('pickup', .58);
-      addFeed(`Nhặt Mystery Box: ${weaponName(special)} trong 15 giây!`);
+    const hitBox = player.tankAlive && g.boxes.find(box => distance(box.pos, player.tankPos) < LOCAL_TANK_RADIUS + 56);
+    if (hitBox) {
+      g.boxes = g.boxes.filter(box => box !== hitBox);
+      collectLocalMysteryBox(player, hitBox);
     }
 
     g.tanks.slice(1).forEach(bot => { if (bot.tankAlive) updateLocalBot(bot, dt); });
@@ -1929,6 +2307,11 @@
   function updateZone(dt) {
     const g = localGame, z = g && g.zone;
     if (!z || g.gameOver) return;
+    if (z.orbitRadius > 0) {
+      z.orbitAngle = (z.orbitAngle + Math.PI * 2 * dt / z.orbitPeriod) % (Math.PI * 2);
+      z.cx = z.anchorX + Math.cos(z.orbitAngle) * z.orbitRadius;
+      z.cy = z.anchorY + Math.sin(z.orbitAngle) * z.orbitRadius;
+    }
     const centre = { vx: z.cx, vy: z.cy };
     z.inside = [0, 0];
     g.tanks.forEach(t => { if (t.tankAlive && distance(t.tankPos, centre) <= z.radius) z.inside[t.team]++; });
@@ -2043,20 +2426,22 @@
     const contested = z.inside[0] > 0 && z.inside[1] > 0;
     const rgb = !z.open ? '170,176,186' : z.owner === 0 ? '80,160,255' : z.owner === 1 ? '255,90,80' : '235,240,245';
     const pulse = .5 + .5 * Math.sin(T * (contested ? 7 : 2.2));
-    ctx.save();
-    // Glowing disc: almost clear in the middle, brighter towards the rim.
-    const disc = ctx.createRadialGradient(c.x, c.y, r * .12, c.x, c.y, r);
+    // The canvas is rendered into a non-square logical viewport. Compensate
+    // for that anisotropic scale before every circular zone primitive so the
+    // objective is mathematically round on screen, not an ellipse.
+    const pixelX = canvas.width / WORLD_W, pixelY = canvas.height / WORLD_H;
+    const yCompensation = pixelX / pixelY;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, yCompensation);
+    const disc = ctx.createRadialGradient(0, 0, r * .12, 0, 0, r);
     disc.addColorStop(0, `rgba(${rgb}, .05)`); disc.addColorStop(.68, `rgba(${rgb}, .13)`); disc.addColorStop(1, `rgba(${rgb}, ${(z.open ? .3 : .22) + pulse * .06})`);
-    ctx.fillStyle = disc; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, TAU); ctx.fill();
-    // Outer rim with a glow (flashes yellow during the showdown).
+    ctx.fillStyle = disc; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
     const flash = z.overtime && Math.floor(T * 4) % 2;
     ctx.shadowColor = `rgba(${flash ? '255,212,93' : rgb}, .9)`; ctx.shadowBlur = 14;
     ctx.strokeStyle = flash ? 'rgba(255,212,93,.97)' : `rgba(${rgb}, .95)`; ctx.lineWidth = Math.max(2, 9 * s);
     if (!z.open) ctx.setLineDash([r * .16, r * .08]);
-    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
     ctx.setLineDash([]); ctx.shadowBlur = 0;
-    // Slowly turning dashed ring + opposite ticks.
-    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(T * .25);
+    ctx.save(); ctx.rotate(T * .25);
     ctx.strokeStyle = `rgba(${rgb}, .42)`; ctx.lineWidth = Math.max(1.5, 5 * s); ctx.setLineDash([r * .12, r * .09]);
     ctx.beginPath(); ctx.arc(0, 0, r * .93, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     ctx.rotate(-T * .5 - T * .25);
@@ -2064,29 +2449,28 @@
     for (let i = 0; i < 12; i++) { const ang = i * TAU / 12; ctx.beginPath(); ctx.moveTo(Math.cos(ang) * r * .76, Math.sin(ang) * r * .76); ctx.lineTo(Math.cos(ang) * r * .82, Math.sin(ang) * r * .82); ctx.stroke(); }
     ctx.restore();
     if (z.open) {
-      // Progress ring: blue fills the right half clockwise, red the left half counter-clockwise (both at 99 % = full ring).
       const rr = r * .64, top = -Math.PI / 2;
       ctx.lineCap = 'round'; ctx.lineWidth = Math.max(3, 15 * s);
-      ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, TAU); ctx.stroke();
-      if (z.progress[0] > 0) { ctx.shadowColor = 'rgba(80,160,255,.9)'; ctx.shadowBlur = 10; ctx.strokeStyle = '#5ca9ff'; ctx.beginPath(); ctx.arc(c.x, c.y, rr, top, top + Math.PI * z.progress[0] / 100); ctx.stroke(); }
-      if (z.progress[1] > 0) { ctx.shadowColor = 'rgba(255,90,80,.9)'; ctx.shadowBlur = 10; ctx.strokeStyle = '#ff655d'; ctx.beginPath(); ctx.arc(c.x, c.y, rr, top, top - Math.PI * z.progress[1] / 100, true); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.stroke();
+      if (z.progress[0] > 0) { ctx.shadowColor = 'rgba(80,160,255,.9)'; ctx.shadowBlur = 10; ctx.strokeStyle = '#5ca9ff'; ctx.beginPath(); ctx.arc(0, 0, rr, top, top + Math.PI * z.progress[0] / 100); ctx.stroke(); }
+      if (z.progress[1] > 0) { ctx.shadowColor = 'rgba(255,90,80,.9)'; ctx.shadowBlur = 10; ctx.strokeStyle = '#ff655d'; ctx.beginPath(); ctx.arc(0, 0, rr, top, top - Math.PI * z.progress[1] / 100, true); ctx.stroke(); }
       ctx.shadowBlur = 0; ctx.lineCap = 'butt';
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (!z.open) {
-      const u = r * .2;   // padlock
-      ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(c.x - u, c.y - u * .2, u * 2, u * 1.5);
+      const u = r * .2;
+      ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(-u, -u * .2, u * 2, u * 1.5);
       ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = Math.max(2, u * .35);
-      ctx.beginPath(); ctx.arc(c.x, c.y - u * .2, u * .65, Math.PI, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -u * .2, u * .65, Math.PI, 0); ctx.stroke();
       ctx.font = `800 ${Math.max(10, r * .38)}px 'Barlow Condensed', sans-serif`; ctx.fillStyle = '#fff4b7';
-      ctx.fillText(String(Math.ceil(z.lockLeft)), c.x, c.y + u * 2.5);
+      ctx.fillText(String(Math.ceil(z.lockLeft)), 0, u * 2.5);
     } else {
-      ctx.fillStyle = 'rgba(8,14,9,.5)'; ctx.beginPath(); ctx.arc(c.x, c.y, r * .3, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(8,14,9,.5)'; ctx.beginPath(); ctx.arc(0, 0, r * .3, 0, TAU); ctx.fill();
       ctx.strokeStyle = `rgba(${rgb}, .55)`; ctx.lineWidth = Math.max(1, 3 * s); ctx.stroke();
       ctx.font = `800 ${Math.max(10, r * .3)}px 'Barlow Condensed', sans-serif`;
-      ctx.fillStyle = '#5ca9ff'; ctx.fillText(String(z.inside[0]), c.x - r * .12, c.y);
-      ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.fillText('·', c.x, c.y);
-      ctx.fillStyle = '#ff655d'; ctx.fillText(String(z.inside[1]), c.x + r * .12, c.y);
+      ctx.fillStyle = '#5ca9ff'; ctx.fillText(String(z.inside[0]), -r * .12, 0);
+      ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.fillText('·', 0, 0);
+      ctx.fillStyle = '#ff655d'; ctx.fillText(String(z.inside[1]), r * .12, 0);
     }
     ctx.restore();
   }
@@ -2150,7 +2534,7 @@
     const g = localGame; if (!g || !g.team || g.gameOver) return;
     g.round++;
     g.roundOver = false; g.awaitingNext = false; g.roundResult = null; g.roundClock = 0;
-    g.bullets = []; g.boxes = []; g.lasers = []; g.boxTimer = 10; g.fireCooldown = 0; g.spectatorTankId = '';
+    g.bullets = []; g.boxes = []; g.effects = []; g.heartSequence = null; g.lasers = []; g.boxTimer = 10; g.fireCooldown = 0; g.spectatorTankId = '';
     g.teamSeen = [null, null];
     input.fire = false;
     // Every round is a fresh death match: new First Blood, no leftover streaks / multi-kills / announcements.
@@ -2349,7 +2733,12 @@
       const dt = Math.min(.04, Math.max(0, (time - lastFrameTime) / 1000)); lastFrameTime = time;
       if (screenName !== 'game') { removeCountdownOverlay(); return; }
       fpsFrameCount++;
-      if (time - fpsLast >= 1000) { $('fps-label').textContent = `${fpsFrameCount} FPS CLIENT`; fpsFrameCount = 0; fpsLast = time; }
+      if (time - fpsLast >= 1000) {
+        const fpsLabel = $('fps-label');
+        if (fpsLabel) fpsLabel.textContent = `${fpsFrameCount} FPS CLIENT`;
+        fpsFrameCount = 0;
+        fpsLast = time;
+      }
       if (mode === 'offline') {
         updateOffline(dt);
         latestSnapshot = localSnapshot();
@@ -2385,10 +2774,11 @@
     drawGround(width, height);
     drawWalls(readField(world, 'mazeWalls') || [], width, height);
     const boxes = readField(snapshot, 'wsMysteryBoxes') || [];
-    boxes.forEach(box => { if (readField(box, 'mbActive') !== false) drawBox(readField(box, 'mbPos'), height); });
+    boxes.forEach(box => { if (readField(box, 'mbActive') !== false) drawBox(readField(box, 'mbPos'), height, box); });
     (readField(snapshot, 'wsLasers') || []).forEach(laser => drawLaser(readField(laser, 'lsStart'), readField(laser, 'lsEnd'), height));
     (readField(snapshot, 'wsBullets') || []).forEach(b => drawBullet(b, height));
     (readField(snapshot, 'wsTanks') || []).forEach(t => drawTank(t, height));
+    drawOnlineEffects(height);
     drawVignette(width, height);
     const mineTank = findMyTank(snapshot);
     if (mineTank) drawAmmoHud(tankStats(mineTank), height - 66);
@@ -2400,7 +2790,9 @@
     const map = localMap;
     const background = map.background;
     const view = localViewSize();
-    if (background.complete && background.naturalWidth) {
+    if (map.id === 'camdia') {
+      drawControlZoneTerrain(map, view);
+    } else if (background.complete && background.naturalWidth) {
       const bk = map.zoneScale || 1;   // the zone map is the same picture stretched
       ctx.drawImage(background, camera.x / bk, camera.y / bk, view.width / bk, view.height / bk, 0, 0, WORLD_W, WORLD_H);
     } else {
@@ -2409,10 +2801,12 @@
     }
     drawControlZone();
     const boxes = readField(snapshot, 'wsMysteryBoxes') || [];
-    boxes.forEach(box => { if (readField(box, 'mbActive') !== false) drawOfflineBox(readField(box, 'mbPos')); });
+    boxes.forEach(box => { if (readField(box, 'mbActive') !== false) drawOfflineBox(readField(box, 'mbPos'), box); });
     (readField(snapshot, 'wsBullets') || []).forEach(drawOfflineBullet);
     (readField(snapshot, 'wsTanks') || []).filter(isOfflineTankVisible).forEach(drawOfflineTank);
+    drawOfflinePickupEffects();
     drawFogOfWar();
+    drawReviveSequence();
     drawAmmoHud(tankStats(localGame.tanks[0]), WORLD_H - 66);
     // Dead: the battlefield is turned grey here (not by a CSS filter) so the names can stay blue / red afterwards.
     if (document.body.classList.contains('offline-gray')) {
@@ -2422,6 +2816,52 @@
       ctx.restore();
       deadTagQueue.forEach(tag => drawNameTag(...tag));
     }
+  }
+
+  function drawControlZoneTerrain(map, view) {
+    const art = map.art || {};
+    const scale = WORLD_W / view.width;
+    ctx.save();
+    ctx.scale(scale, scale);
+    ctx.translate(-camera.x, -camera.y);
+    ctx.fillStyle = '#4a473e'; ctx.fillRect(0, 0, map.width, map.height);
+    const minX = camera.x - 8, minY = camera.y - 8;
+    const maxX = camera.x + view.width + 8, maxY = camera.y + view.height + 8;
+    (map.terrainPatches || []).forEach(({ key, x, y, size }) => {
+      if (x + size < minX || y + size < minY || x > maxX || y > maxY) return;
+      const image = art[key];
+      if (image && image.complete && image.naturalWidth) {
+        // The source tiles are intentionally repeated at a smaller scale, so
+        // a camera view contains several real user-provided textures.
+        ctx.drawImage(image, x, y, size + 1, size + 1);
+      } else {
+        ctx.fillStyle = '#48453c'; ctx.fillRect(x, y, size + 1, size + 1);
+      }
+    });
+    // A subdued veil unifies the repeated user-provided terrain tiles without
+    // concealing their colour and detail.
+    ctx.fillStyle = 'rgba(8,10,8,.12)'; ctx.fillRect(0, 0, map.width, map.height);
+    (map.scene || []).forEach(([kind, x, y, size, rotation]) => drawControlZoneProp(art, kind, x, y, size, rotation));
+    ctx.restore();
+  }
+
+  function drawControlZoneProp(art, kind, x, y, size, rotation = 0) {
+    const drawImage = (image, px, py, width, height = width, angle = rotation) => {
+      if (!image || !image.complete || !image.naturalWidth) return;
+      ctx.save(); ctx.translate(px, py); ctx.rotate(angle); ctx.globalAlpha = .98;
+      ctx.drawImage(image, -width / 2, -height / 2, width, height); ctx.restore();
+    };
+    if (kind === 'rocks') {
+      [[-.34,-.22],[0,-.3],[.34,-.2],[-.22,.2],[.18,.24]].forEach(([dx, dy], i) => drawImage(art.rock, x + dx * size, y + dy * size, size * (.46 + (i % 2) * .05)));
+      return;
+    }
+    if (kind === 'bushes') {
+      [[-.26,-.15],[.12,-.2],[-.16,.2],[.28,.18]].forEach(([dx, dy], i) => drawImage(art.bush, x + dx * size, y + dy * size, size * (.72 + (i % 2) * .12)));
+      return;
+    }
+    if (kind === 'container') { drawImage(art.container, x, y, size * 1.12, size * .56); return; }
+    if (kind === 'ruin') { drawImage(art.ruin, x, y, size, size); return; }
+    drawImage(art.tree, x, y, size * .78, size);
   }
 
   function isOfflineTankVisible(tank) {
@@ -2538,24 +2978,116 @@
     return type === 'LaserBullet' ? '#82f9ff' : type === 'ShotgunBullet' ? '#ffca73' : type === 'WallPiercingBullet' ? '#c39aff' : type === 'GatlingBullet' ? '#ff9658' : '#e6efc4';
   }
 
+  function drawProjectileArt(type, x, y, angle, size) {
+    const frames = bulletEffectFrames[type];
+    if (!frames || !frames.length) return false;
+    const frame = frames[Math.floor(performance.now() / 68) % frames.length];
+    if (!frame.complete || !frame.naturalWidth) return false;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle || 0);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(frame, -size / 2, -size / 2, size, size);
+    ctx.restore();
+    return true;
+  }
+
+  function drawBulletCore(type, x, y, radius) {
+    const color = bulletColor(type);
+    ctx.save();
+    ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // The supplied effect PNGs have generous transparent borders.  Rendering
+  // them at their raw canvas size made a Mystery Box projectile look like a
+  // one-pixel ray.  This converts the sprite canvas to a visible projectile
+  // about the size of the tank's standard round at the current camera zoom.
+  function specialProjectileArtSize(type, coreRadius) {
+    const multiplier = type === 'LaserBullet' || type === 'WallPiercingBullet' ? 21
+      : type === 'GatlingBullet' ? 18 : 15;
+    return Math.max(36, coreRadius * multiplier);
+  }
+
   function drawOfflineBullet(bullet) {
     const pos = readField(bullet, 'bulPos'); if (!pos) return;
     const type = readField(bullet, 'bulType') || 'NormalBullet';
     const screen = localToScreen({ vx: Number(readField(pos, 'vx') || 0), vy: Number(readField(pos, 'vy') || 0) });
-    const color = bulletColor(type);
     const radius = Math.max(2, (type === 'ShotgunBullet' ? 9 : 7) * localWorldScale());
-    ctx.save(); ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    const velocity = readField(bullet, 'bulVel') || {};
+    const angle = Math.atan2(Number(readField(velocity, 'vy') || 0), Number(readField(velocity, 'vx') || 0));
+    if (type === 'NormalBullet') { drawBulletCore(type, screen.x, screen.y, radius); return; }
+    // Keep a full-size glowing core behind the artwork so every special shot
+    // remains as readable as a normal tank round, even in a sparse frame.
+    drawBulletCore(type, screen.x, screen.y, radius);
+    drawProjectileArt(type, screen.x, screen.y, angle, specialProjectileArtSize(type, radius));
   }
 
-  function drawOfflineBox(pos) {
+  function localTankRenderSize() {
+    return localMap ? localMap.tankSize * localMap.tankScale * Number(TEST_GAME.tankRenderScale || .5) * localWorldScale() : 72;
+  }
+
+  function boxMotion(box) {
+    const spawnedAt = box ? Number(box.spawnedAt ?? readField(box, 'mbSpawnedAt') ?? 0) : 0;
+    const age = mode === 'offline' && localGame ? localGame.time - spawnedAt : performance.now() / 1000;
+    return { scale: 1 + .09 * Math.sin(age * 7), shakeX: Math.sin(age * 19) * 2.4, shakeY: Math.cos(age * 23) * 1.6 };
+  }
+
+  function drawOfflineBox(pos, box) {
     if (!pos) return;
     const screen = localToScreen({ vx: Number(readField(pos, 'vx') || 0), vy: Number(readField(pos, 'vy') || 0) });
-    const x = screen.x, y = screen.y;
-    const size = 56 * localWorldScale();
+    const motion = boxMotion(box), x = screen.x + motion.shakeX, y = screen.y + motion.shakeY;
+    const size = 112 * localWorldScale() * motion.scale;
     const image = images.box;
-    ctx.save(); ctx.shadowColor = '#f3d466'; ctx.shadowBlur = 18;
+    ctx.save(); ctx.shadowColor = '#f3d466'; ctx.shadowBlur = 24;
     if (image && image.complete && image.naturalWidth) ctx.drawImage(image, x - size / 2, y - size / 2, size, size);
     else { ctx.fillStyle = '#e1bc4e'; ctx.fillRect(x - size * .4, y - size * .4, size * .8, size * .8); ctx.fillStyle = '#132013'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('?', x, y + 4); }
+    ctx.restore();
+  }
+
+  function drawItemEffect(effect, x, y, size) {
+    const fade = clamp(effect.life / effect.duration, 0, 1);
+    ctx.save(); ctx.globalAlpha = Math.min(1, fade * 1.5);
+    if (effect.kind === 'boxBroken') {
+      const image = images.boxBroken;
+      if (image && image.complete && image.naturalWidth) ctx.drawImage(image, x - size / 2, y - size / 2, size, size);
+    } else if (effect.kind === 'weapon') {
+      drawProjectileArt(effect.reward, x, y, -Math.PI / 2, size * .66);
+    } else if (effect.reward === 'bomb') {
+      const image = images.rewardBomb;
+      if (image && image.complete && image.naturalWidth) ctx.drawImage(image, x - size / 2, y - size / 2, size, size);
+    } else if (effect.reward === 'shield') {
+      const image = images.rewardShield;
+      if (image && image.complete && image.naturalWidth) ctx.drawImage(image, x - size / 2, y - size / 2, size, size);
+    } else if (effect.reward === 'power') {
+      const pulse = 1 + .12 * Math.sin(performance.now() / 75);
+      ctx.strokeStyle = '#ffe778'; ctx.shadowColor = '#ffe778'; ctx.shadowBlur = 16; ctx.lineWidth = Math.max(2, size * .05);
+      ctx.beginPath(); ctx.arc(x, y, size * .28 * pulse, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#fff0a6'; ctx.font = `800 ${Math.max(10, size * .16)}px "Barlow Condensed", sans-serif`; ctx.textAlign = 'center'; ctx.fillText('POWER', x, y + size * .06);
+    }
+    ctx.restore();
+  }
+
+  function drawOfflinePickupEffects() {
+    const g = localGame; if (!g) return;
+    const size = localTankRenderSize() * 1.25;
+    g.effects.forEach(effect => {
+      const point = localToScreen(effect.pos);
+      drawItemEffect(effect, point.x, point.y, size);
+    });
+  }
+
+  function drawReviveSequence() {
+    const sequence = localGame && localGame.heartSequence;
+    if (!sequence || !heartFrames.length) return;
+    const elapsed = sequence.duration - sequence.life;
+    const frame = heartFrames[Math.floor(elapsed / .16) % heartFrames.length];
+    if (!frame.complete || !frame.naturalWidth) return;
+    const size = localTankRenderSize();
+    const pulse = 1 + .12 * Math.sin(elapsed * 12);
+    ctx.save(); ctx.globalAlpha = Math.min(1, sequence.life * 2); ctx.shadowColor = '#ff5d78'; ctx.shadowBlur = 18;
+    ctx.drawImage(frame, WORLD_W / 2 - size * pulse / 2, WORLD_H / 2 - size * pulse / 2, size * pulse, size * pulse);
     ctx.restore();
   }
 
@@ -2647,17 +3179,41 @@
   function drawBullet(b, height) {
     const pos = readField(b, 'bulPos'); if (!pos) return; const type = readField(b, 'bulType') || 'NormalBullet';
     const x = Number(readField(pos, 'vx') || 0), y = height - Number(readField(pos, 'vy') || 0);
-    const color = bulletColor(type);
-    ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 9; ctx.fillStyle = color;
-    if (type === 'LaserBullet') { ctx.fillRect(x - 2, y - 6, 4, 12); } else { ctx.beginPath(); ctx.arc(x, y, type === 'ShotgunBullet' ? 3.5 : 3, 0, Math.PI * 2); ctx.fill(); }
-    ctx.restore();
+    const velocity = readField(b, 'bulVel') || {};
+    const angle = Math.atan2(-Number(readField(velocity, 'vy') || 0), Number(readField(velocity, 'vx') || 0));
+    const radius = type === 'ShotgunBullet' ? 3.5 : 3;
+    if (type === 'NormalBullet') { drawBulletCore(type, x, y, radius); return; }
+    // Online snapshots use the same readable size as offline Mystery Box
+    // rounds, rather than the tiny raw effect sprite.
+    drawBulletCore(type, x, y, radius);
+    drawProjectileArt(type, x, y, angle, specialProjectileArtSize(type, radius));
   }
-  function drawBox(pos, height = WORLD_H) {
+  function drawBox(pos, height = WORLD_H, box = null) {
     if (!pos) return; const x = Number(readField(pos, 'vx') || 0), y = height - Number(readField(pos, 'vy') || 0);
     const im = images.box;
-    ctx.save(); ctx.shadowColor = '#e8c95a'; ctx.shadowBlur = 12;
-    if (im && im.complete && im.naturalWidth) { ctx.drawImage(im, x - 13, y - 13, 26, 26); } else { ctx.fillStyle = '#d3aa42'; ctx.fillRect(x - 11, y - 11, 22, 22); ctx.fillStyle = '#1c281b'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('?', x, y + 6); }
+    const motion = boxMotion(box), size = 56 * motion.scale;
+    ctx.save(); ctx.shadowColor = '#e8c95a'; ctx.shadowBlur = 18;
+    if (im && im.complete && im.naturalWidth) { ctx.drawImage(im, x + motion.shakeX - size / 2, y + motion.shakeY - size / 2, size, size); } else { ctx.fillStyle = '#d3aa42'; ctx.fillRect(x - 22, y - 22, 44, 44); ctx.fillStyle = '#1c281b'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('?', x, y + 6); }
     ctx.restore();
+  }
+
+  function queueOnlineBoxEffects(picker, reward) {
+    const tank = latestSnapshot && (readField(latestSnapshot, 'wsTanks') || []).find(item => String(readField(item, 'tankId') || '') === picker);
+    const pos = tank && readField(tank, 'tankPos'); if (!pos) return;
+    const point = { vx: Number(readField(pos, 'vx') || 0), vy: Number(readField(pos, 'vy') || 0) };
+    const expires = performance.now() + 2000;
+    onlineEffects.push({ kind: 'boxBroken', pos: point, owner: '', reward: '', expires, duration: 2000 });
+    onlineEffects.push({ kind: 'weapon', pos: point, owner: picker, reward, expires, duration: 2000 });
+  }
+
+  function drawOnlineEffects(height) {
+    const now = performance.now();
+    const tanks = latestSnapshot ? (readField(latestSnapshot, 'wsTanks') || []) : [];
+    onlineEffects = onlineEffects.filter(effect => effect.expires > now && (!effect.owner || tanks.some(tank => String(readField(tank, 'tankId') || '') === effect.owner && readField(tank, 'tankAlive') !== false)));
+    onlineEffects.forEach(effect => {
+      const life = Math.max(0, (effect.expires - now) / 1000);
+      drawItemEffect({ ...effect, life, duration: effect.duration / 1000 }, Number(effect.pos.vx), height - Number(effect.pos.vy), 54);
+    });
   }
   function drawLaser(a, b, height) { if (!a || !b) return; const x1 = Number(readField(a, 'vx') || 0), y1 = height - Number(readField(a, 'vy') || 0), x2 = Number(readField(b, 'vx') || 0), y2 = height - Number(readField(b, 'vy') || 0); ctx.save(); ctx.strokeStyle = '#89faff'; ctx.shadowColor = '#89faff'; ctx.shadowBlur = 12; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore(); }
   function drawVignette(w = WORLD_W, h = WORLD_H) { const grad = ctx.createRadialGradient(w / 2, h / 2, 80, w / 2, h / 2, Math.max(w, h) * .75); grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(4,10,5,.33)'); ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h); }
@@ -2771,7 +3327,8 @@
     lastKillerOfMe = ''; myDeathAt = 0; myWasAlive = true;
     matchClockStart = performance.now();
     document.body.classList.remove('player-dead', 'offline-gray');
-    lastClockBeep = null; minuteWarnKey = null; countdownActive = false; matchPointActive = false; zoneBoostActive = false; matchPointChoice = null; firstBloodDone = false; hideEndSplash(); removeCountdownOverlay();
+    lastClockBeep = null; lastCountdownSecond = null; minuteWarnKey = null; countdownActive = false; matchPointActive = false; zoneBoostActive = false; matchPointChoice = null; firstBloodDone = false; hideEndSplash(); removeCountdownOverlay(); stopCountdownSound();
+    onlineEffects = [];
     resetAnnouncements();
     const feed = $('kill-feed'); if (feed) feed.innerHTML = '';
     clearTimeout(bannerTimer);
@@ -3159,12 +3716,14 @@
 
   // ---------------------------------------------------------------- event wiring (each handler registered once)
 
-  $('online-button').addEventListener('click', () => openTankSelect('connect'));
-  $('practice-button').addEventListener('click', () => openTankSelect('offline'));
-  $('player-name').addEventListener('keydown', e => { if (e.key === 'Enter') openTankSelect('connect'); });
-  $('server-url').addEventListener('keydown', e => { if (e.key === 'Enter') openTankSelect('connect'); });
+  $('online-button').addEventListener('click', connectOnline);
+  $('player-name').addEventListener('keydown', e => { if (e.key === 'Enter') connectOnline(); });
+  $('server-url').addEventListener('keydown', e => { if (e.key === 'Enter') connectOnline(); });
   $('main-exit').addEventListener('click', quitGame);
-  $('map-back').addEventListener('click', () => showScreen('home'));
+  $('map-back').addEventListener('click', () => {
+    if (mapSelectMode === 'online' && activeRoom) { showScreen('room'); return; }
+    showScreen('home');
+  });
   const MATCH_TIME_LIMITS = [1, 20];   // minutes allowed in the free-form box (free-for-all match)
   const TEAM_TIME_LIMITS = [1, 20];    // minutes allowed in the free-form box (one team round)
   const MATCH_CHOICES = [180, 300, 420, 600];        // free-for-all: 3 / 5 / 7 / 10 minutes
@@ -3223,8 +3782,9 @@
     setText('setup-hint', zone
       ? `CẤM ĐỊA ${size}V${size}: Hai đội tranh giành quyền kiểm soát khu vực trung tâm bản đồ rộng hơn trước. Trong ${RULES.zoneLockSeconds} giây đầu, khu vực bị khóa chiếm điểm nhưng hai đội vẫn có thể giao tranh bình thường. Khi khu vực mở, đội có nhiều xe tăng bên trong hơn sẽ chiếm ưu thế và đẩy thanh tiến trình về phía mình; nếu số xe hai đội bằng nhau, tiến trình sẽ tạm dừng. Đội đạt 100% trước sẽ giành chiến thắng. Khi cả hai đội cùng chạm 99%, đội có nhiều xe hơn trong vùng liên tục ${RULES.zoneContestSeconds} giây sẽ thắng; thanh vàng reset ngay nếu số xe bằng nhau hoặc đội đang áp đảo rời vùng. Xe bị hạ gục sẽ hồi sinh sau ${RULES.zoneRespawn} giây và mỗi xe chỉ có thể bắn một phát sau mỗi ${RULES.zoneShotDelay} giây. ${BOT_LEVELS[botSettings.difficulty].hint}`
       : team
-      ? `${size}V${size}: Bạn cùng ${size - 1} bot đồng đội (xanh) đối đầu với ${size} bot địch (đỏ). Trận đấu gồm ${botSettings.teamRounds} ván; đội thắng ${Math.floor(botSettings.teamRounds / 2) + 1} ván trước sẽ thắng cả trận. Mỗi ván là một trận tử chiến: xe bị hạ sẽ không thể quay lại cho đến ván tiếp theo. Đội bị tiêu diệt toàn bộ sẽ thua ván đó. Kết thúc các ván, đội thắng nhiều ván hơn sẽ giành chiến thắng chung cuộc. ${BOT_LEVELS[botSettings.difficulty].hint}`
-      : BOT_LEVELS[botSettings.difficulty].hint);
+        ? `${size}V${size}: Bạn cùng ${size - 1} bot đồng đội (xanh) đối đầu với ${size} bot địch (đỏ). Trận đấu gồm ${botSettings.teamRounds} ván; đội thắng ${Math.floor(botSettings.teamRounds / 2) + 1} ván trước sẽ thắng cả trận. Mỗi ván là một trận tử chiến: xe bị hạ sẽ không thể quay lại cho đến ván tiếp theo. Đội bị tiêu diệt toàn bộ sẽ thua ván đó. Kết thúc các ván, đội thắng nhiều ván hơn sẽ giành chiến thắng chung cuộc. ${BOT_LEVELS[botSettings.difficulty].hint}`
+        : BOT_LEVELS[botSettings.difficulty].hint);
+    syncOfflineMapChoices();
   }
   (function bindRoundsInput() {
     const input = $('setup-rounds-input'); if (!input) return;
@@ -3312,7 +3872,22 @@
     botSettings.teamSize = Math.max(0, Math.min(5, Number(button.dataset.team) || 0));
     refreshBotSetup();
   }));
-  document.querySelectorAll('[data-map]').forEach(button => button.addEventListener('click', () => chooseOfflineMap(button.dataset.map)));
+  document.querySelectorAll('[data-map]').forEach(button => button.addEventListener('click', () => {
+    if (mapSelectMode === 'online') chooseOnlineMap(button.dataset.map);
+    else chooseOfflineMap(button.dataset.map);
+  }));
+  $('online-team-blue').addEventListener('click', () => {
+    if (mapSelectMode === 'online' && onlineDraft.mode === 'teams') sendMessage('CChooseTeam', { cctTeam: 'blue' });
+  });
+  $('online-team-red').addEventListener('click', () => {
+    if (mapSelectMode === 'online' && onlineDraft.mode === 'teams') sendMessage('CChooseTeam', { cctTeam: 'red' });
+  });
+  $('online-start-match').addEventListener('click', () => {
+    if (!isHost) return;
+    if (!Object.keys(onlineDraft.votes).length) { setError('map-error', 'Cần ít nhất một phiếu chọn bản đồ.'); return; }
+    setError('map-error', '');
+    sendMessage('CStartGame');
+  });
   $('tank-select-back').addEventListener('click', closeTankSelect);
   $('tank-confirm').addEventListener('click', confirmTankSelection);
   document.querySelectorAll('[data-hull]').forEach(button => button.addEventListener('click', () => {
@@ -3325,18 +3900,25 @@
   }));
   $('results-exit').addEventListener('click', exitResultsToHome);
   $('results-back').addEventListener('click', backToBattleRoom);
-  $('brand-home').addEventListener('click', e => { e.preventDefault(); if (screenName === 'game') togglePauseModal(); else showScreen('home'); });
-  $('refresh-rooms').addEventListener('click', () => { setError('lobby-error', ''); sendMessage('CListRooms'); });
+  $('brand-home').addEventListener('click', e => {
+    e.preventDefault();
+    if (screenName === 'game') { togglePauseModal(); return; }
+    if (ws || mode === 'online') closeSocket();
+    mode = 'none';
+    showScreen('home');
+  });
+  $('practice-button').addEventListener('click', () => openTankSelect('offline'));
   $('create-button').addEventListener('click', createRoom);
-  $('create-test-button').addEventListener('click', () => openTankSelect('offline'));
   $('join-button').addEventListener('click', joinRoom);
   $('join-id').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
   $('join-id').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
   $('start-button').addEventListener('click', () => {
     unlockAudio(); setError('lobby-error', '');
     if (!isHost) { setError('lobby-error', 'Chỉ chủ phòng mới có thể bắt đầu.'); return; }
-    enterGameplayFullscreen();
-    sendMessage('CStartGame');
+    // This begins the online pre-match flow; it never starts a local practice
+    // arena. The server asks every member to choose a tank, then map voting.
+    sendMessage('COpenDraft');
+    openTankSelect('onlineMap');
   });
   $('leave-room').addEventListener('click', () => { if (wsReady && activeRoom) sendMessage('CLeaveRoom'); else { activeRoom = null; showScreen('lobby'); } });
   $('lobby-back').addEventListener('click', () => { if (activeRoom) sendMessage('CLeaveRoom'); else { closeSocket(); showScreen('home'); } });
@@ -3347,6 +3929,11 @@
   });
   $('overlay-action').addEventListener('click', () => { const action = roundOverlayAction; hideOverlay(); if (action) action(); });
   document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('pointerdown', event => {
+    if (event.pointerType !== 'touch') document.body.classList.add('mouse-pressed');
+  });
+  window.addEventListener('pointerup', () => document.body.classList.remove('mouse-pressed'));
+  window.addEventListener('blur', () => document.body.classList.remove('mouse-pressed'));
   document.addEventListener('keydown', unlockAudio, { once: true });
   document.addEventListener('click', event => { if (event.target.closest('button') && event.target.closest('#sound-toggle') === null) playSfx('click', .24); });
   $('sound-toggle').addEventListener('click', toggleSound);
@@ -3388,6 +3975,8 @@
   refreshBotSetup();
   refreshTankAssembly();
   refreshSoundToggle();
+  statusPill('idle', 'SẴN SÀNG KẾT NỐI');
+  resetConnectButton();
   resizeCanvasBacking();
 
   // Expose a small protocol diagnostic through the console for coursework debugging.

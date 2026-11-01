@@ -63,20 +63,23 @@ withMongo :: MongoPool -> Action IO a -> IO (Either SomeException a)
 withMongo pool act = do
   maybePipe <- readIORef (mpPipe pool)
   pipe <- case maybePipe of
-    Just p  -> return p
+    Just p  -> return (Just p)
     Nothing -> do
       mp <- tryConnect (mpConfig pool)
       case mp of
-        Just p  -> writeIORef (mpPipe pool) (Just p) >> return p
-        Nothing -> error "[MongoDB] Không thể kết nối lại database!"
-  result <- try $ access pipe master (mcDatabase (mpConfig pool)) act
-  case result of
-    Left err -> do
-      putStrLn $ "[MongoDB] Lỗi truy vấn, đóng pipe cũ: " ++ show (err :: SomeException)
-      writeIORef (mpPipe pool) Nothing
-      void $ try @SomeException (close pipe)
-      return (Left err)
-    Right val -> return (Right val)
+        Just p  -> writeIORef (mpPipe pool) (Just p) >> return (Just p)
+        Nothing -> return Nothing
+  case pipe of
+    Nothing -> return (Left (toException (userError "[MongoDB] Database offline (running in-memory mode)")))
+    Just p  -> do
+      result <- try $ access p master (mcDatabase (mpConfig pool)) act
+      case result of
+        Left err -> do
+          putStrLn $ "[MongoDB] Lỗi truy vấn, đóng pipe cũ: " ++ show (err :: SomeException)
+          writeIORef (mpPipe pool) Nothing
+          void $ try @SomeException (close p)
+          return (Left err)
+        Right val -> return (Right val)
 
 -- | Đóng kết nối MongoDB.
 closeMongo :: MongoPool -> IO ()
