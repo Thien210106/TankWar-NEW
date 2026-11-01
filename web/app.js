@@ -2599,6 +2599,25 @@
     setText('round-alive', `SỐNG ${aliveOf(my)} · ${aliveOf(1 - my)}`);
   }
 
+  // Kill totals of both teams (2v2-5v5 and Cấm Địa): small board at the top centre, our team (blue) left, the enemy (red) right.
+  // Cấm Địa has no top clock any more (the zone timer in the progress bars already counts the time); the board takes its place.
+  function updateKillBoard() {
+    const box = $('kill-board'); if (!box) return;
+    const clock = $('match-clock');
+    const g = mode === 'offline' ? localGame : null;
+    if (!g || !g.team) { if (!box.hidden) box.hidden = true; if (clock && clock.hidden) clock.hidden = false; return; }
+    if (box.hidden) box.hidden = false;
+    const my = g.tanks[0].team;
+    const killsOf = team => g.tanks.reduce((sum, t) => sum + (t.team === team ? t.tankKills : 0), 0);   // tankKills is kept for the whole match (all rounds)
+    setText('kb-blue', killsOf(my));
+    setText('kb-red', killsOf(1 - my));
+    box.classList.toggle('zone', !!g.zone);
+    if (clock) {
+      if (clock.hidden !== !!g.zone) clock.hidden = !!g.zone;
+      if (!g.zone && clock.offsetWidth) box.style.setProperty('--kb-clock', `${clock.offsetWidth}px`);
+    }
+  }
+
   // Time is up: the tank with the most points wins (ties: more kills, then fewer deaths).
   function finishLocalMatch() {
     const g = localGame; if (!g || g.gameOver) return;
@@ -2748,6 +2767,7 @@
         if (mode === 'offline') { updateMatchHeader(latestSnapshot); updateWeaponPanel(latestSnapshot); updateScoreboard(latestSnapshot); }
         updateRoundScore();
         updateZoneHud();
+        updateKillBoard();
         updateGameplayHud(latestSnapshot);
       }
       renderSnapshot(latestSnapshot);
