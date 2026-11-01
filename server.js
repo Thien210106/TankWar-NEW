@@ -488,8 +488,12 @@ function handleClientMessage(ws, tag, data) {
       }
 
       const draft = ensureDraft(room);
-      if (draft.stage !== 'map' || Object.keys(draft.votes).length === 0) {
-        sendTo(ws, 'SRoomError', 'Hãy chọn xe và bỏ phiếu bản đồ trước khi bắt đầu.');
+      const everyoneReady = room.players.length > 0 && room.players.every(player => {
+        const name = player.username;
+        return draft.votes[name] && (draft.teams[name] === 'blue' || draft.teams[name] === 'red');
+      });
+      if (draft.stage !== 'map' || !everyoneReady) {
+        sendTo(ws, 'SRoomError', 'CÁC NGƯỜI CHƠI CHƯA SẴN SÀNG. Mỗi người phải chọn đội và bản đồ.');
         return;
       }
       room.selectedMap = resolveDraftMap(draft.votes);

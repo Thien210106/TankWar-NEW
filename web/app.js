@@ -152,6 +152,17 @@
     }
     return { hull: images.hull, gun: images.gun };
   }
+  // The supplied gun sprites already include their own turret assembly.  A
+  // one-to-one draw with the hull made that assembly read much larger than the
+  // body in the arena, even though it looks balanced in the garage preview.
+  const GUN_RENDER_SCALE = .72;
+  function drawTankGunSprite(gun, color, turretAngle, width, height) {
+    const scale = GUN_RENDER_SCALE;
+    ctx.save();
+    ctx.rotate(turretAngle + Math.PI / 2);
+    drawTinted(gun, color, -width * scale / 2, -height * scale / 2, width * scale, height * scale);
+    ctx.restore();
+  }
   const hudImages = {};
   Array.from({ length: 10 }, (_, digit) => digit).forEach(digit => {
     const image = new Image();
@@ -1118,7 +1129,7 @@
 
   // ---------------------------------------------------------------- results
 
-  function showPostMatch({ title, summary, kills = 0, score = 0, map = 'FOREST', scores = [], players = null, report = null }) {
+  function showPostMatch({ title, kills = 0, score = 0, map = 'FOREST', scores = [], players = null, report = null }) {
     // The match is over: stop and clear every kill notification (banner, voice queue, kill feed).
     resetAnnouncements();
     clearTimeout(bannerTimer);
@@ -1127,7 +1138,6 @@
     hideOverlay();
     leaveGameplayFullscreen();
     $('results-title').textContent = title;
-    $('results-summary').textContent = summary;
     $('results-kills').textContent = String(kills);
     $('results-score').textContent = String(score);
     $('results-map').textContent = String(map).toUpperCase();
@@ -1500,6 +1510,16 @@
     sendMessage('CMapVote', { cmvMapId: mapId });
   }
 
+  function getOnlineDraftReadiness(players) {
+    const activePlayers = players.filter(Boolean);
+    const missing = activePlayers.filter(player => {
+      const voted = Object.prototype.hasOwnProperty.call(onlineDraft.votes, player);
+      const choseTeam = onlineDraft.teams[player] === 'blue' || onlineDraft.teams[player] === 'red';
+      return !voted || !choseTeam;
+    });
+    return { ready: activePlayers.length > 0 && missing.length === 0, missing };
+  }
+
   function renderOnlineMatchSetup() {
     const players = onlineDraft.players.length
       ? onlineDraft.players
@@ -1520,11 +1540,12 @@
     teamPicker.hidden = false;
     renderOnlineTeamRow('online-team-blue', 'blue', players);
     renderOnlineTeamRow('online-team-red', 'red', players);
+    const readiness = getOnlineDraftReadiness(players);
     const counts = { forest: 0, ruins: 0, depot: 0, random: 0 };
     Object.values(onlineDraft.votes).forEach(vote => { if (Object.prototype.hasOwnProperty.call(counts, vote)) counts[vote] += 1; });
     const choices = Object.entries(counts).filter(([, count]) => count > 0);
-    let leader = 'CHƯA CÓ PHIẾU';
-    if (choices.length) {
+    let leader = 'CÁC NGƯỜI CHƠI CHƯA SẴN SÀNG';
+    if (readiness.ready && choices.length) {
       const max = Math.max(...choices.map(([, count]) => count));
       const leaders = choices.filter(([, count]) => count === max).map(([map]) => MAP_LABELS[map]);
       leader = leaders.length > 1 ? `ĐỒNG PHIẾU: ${leaders.join(' / ')}` : `TẠM DẪN: ${leaders[0]} · ${max} PHIẾU`;
@@ -1532,7 +1553,7 @@
     setText('online-vote-summary', leader);
     const start = $('online-start-match');
     start.hidden = !isHost;
-    start.disabled = !isHost || choices.length === 0;
+    start.disabled = !isHost || !readiness.ready || choices.length === 0;
     start.textContent = '▶ CHỐT BẢN ĐỒ & BẮT ĐẦU';
   }
 
@@ -2611,8 +2632,7 @@
     const won = winner === me;
     playEndSfx(won);
     showEndSplash(won ? 'win' : 'lose', () => showPostMatch({
-      title: won ? 'VICTORY' : 'TIMES UP',
-      summary: won ? `Time's up, you're leading with ${me.tankPoints} points.` : `Time's up. ${winner.tankId} wins with ${winner.tankPoints} points, you have ${me.tankPoints} points.`,
+      title: won ? 'VICTORY' : 'DEFEAT',
       kills: me.tankKills, score: me.tankPoints, map: localMap.label,
       scores: ranking.map(t => [t.tankId, t.tankPoints]),
       players: matchPlayers(g), report: { team: false, outcome: won ? 'win' : 'lose' }
@@ -2943,7 +2963,7 @@
     }
     const gun = sprites.gun;
     if (gun && gun.complete && gun.naturalWidth) {
-      ctx.save(); ctx.rotate(turretAngle + Math.PI / 2); drawTinted(gun, color, -size / 2, -size / 2, size, size); ctx.restore();
+      drawTankGunSprite(gun, color, turretAngle, size, size);
     }
     if (invuln > 0) { ctx.globalAlpha = 1; drawShield(size * .5); }
     ctx.restore();
@@ -3163,7 +3183,12 @@
       ctx.save(); ctx.rotate(Math.PI / 2 - bodyAngle); drawTinted(hull, color, -11, -18, 22, 36); ctx.restore();
     } else drawVectorHull(color, bodyAngle);
     const gun = sprites.gun;
-    if (gun && gun.complete && gun.naturalWidth) { ctx.save(); ctx.rotate(Math.PI / 2 - turretAngle); drawTinted(gun, color, -7, -18, 14, 36); ctx.restore(); }
+    if (gun && gun.complete && gun.naturalWidth) {
+      // `drawTankGunSprite` uses the offline rotation convention.  Reuse its
+      // scale here while retaining the inverted-Y rotation used by snapshots.
+      const scale = GUN_RENDER_SCALE;
+      ctx.save(); ctx.rotate(Math.PI / 2 - turretAngle); drawTinted(gun, color, -7 * scale, -18 * scale, 14 * scale, 36 * scale); ctx.restore();
+    }
     else { ctx.save(); ctx.rotate(-turretAngle); ctx.fillStyle = color; ctx.fillRect(-3, -22, 6, 24); ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     ctx.restore();
     const onlineName = String(readField(tank, 'tankId') || '');
@@ -3884,7 +3909,8 @@
   });
   $('online-start-match').addEventListener('click', () => {
     if (!isHost) return;
-    if (!Object.keys(onlineDraft.votes).length) { setError('map-error', 'Cần ít nhất một phiếu chọn bản đồ.'); return; }
+    const players = onlineDraft.players.length ? onlineDraft.players : roomPlayerNames.map(player => player.name).filter(Boolean);
+    if (!getOnlineDraftReadiness(players).ready) { setError('map-error', 'CÁC NGƯỜI CHƠI CHƯA SẴN SÀNG. Mỗi người phải chọn đội và bản đồ.'); return; }
     setError('map-error', '');
     sendMessage('CStartGame');
   });
