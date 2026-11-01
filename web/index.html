@@ -46,7 +46,7 @@
           <div class="field-row">
             <div class="field-grow">
               <label for="server-url" class="visually-hidden">HASKELL SERVER · WEBSOCKET</label>
-              <input id="server-url" class="visually-hidden" type="url" value="ws://localhost:8080" spellcheck="false">
+              <input id="server-url" class="visually-hidden" type="url" value="ws://localhost:3000" spellcheck="false">
             </div>
           </div>
           <button class="asset-menu-button find-room-action" id="online-button" type="button"
@@ -70,14 +70,19 @@
               <span id="map-settings-title">THIẾT LẬP TRẬN</span>
               <p id="map-settings-subtitle">Chọn thông số trước khi vào trận.</p>
             </header>
-            <div id="match-setup" class="match-setup" aria-label="Thiết lập bot">
-              <div class="setup-group"><span class="setup-label">ĐỘ KHÓ BOT</span>
-                <div class="setup-options" role="group"><button class="setup-chip" type="button"
-                    data-difficulty="easy">EASY</button><button class="setup-chip active" type="button"
-                    data-difficulty="medium">MEDIUM</button><button class="setup-chip" type="button"
-                    data-difficulty="hard">HARD</button><button class="setup-chip" type="button"
-                    data-difficulty="extreme">EXTREME</button></div>
+                        <div id="match-setup" class="match-setup" aria-label="Thiết lập trận">
+              <div class="setup-group" id="setup-category-group"><span class="setup-label">HÌNH THỨC</span>
+                <div class="setup-dd"><button class="setup-chip setup-dd-trigger active" type="button" aria-haspopup="true"
+                    aria-expanded="false" id="setup-category-trigger"><span id="dd-category-label">🤖 ĐẤU BOT</span><i class="setup-caret"
+                      aria-hidden="true">▾</i></button>
+                  <div class="setup-dd-menu" hidden>
+                    <button class="setup-dd-item active" type="button" data-match-category="bot">🤖 ĐẤU BOT</button>
+                    <button class="setup-dd-item" type="button" data-match-category="pvp">⚔️ GHÉP PHÒNG (PVP)</button>
+                  </div>
+                </div>
               </div>
+
+              <!-- CHẾ ĐỘ: TỬ CHIẾN, ĐẤU ĐỘI (2v2..5v5), CẤM ĐỊA (2v2..5v5) - HIỆN Ở CẢ 2 HÌNH THỨC -->
               <div class="setup-group" id="setup-mode-group"><span class="setup-label">CHẾ ĐỘ</span>
                 <div class="setup-options" role="group"><button class="setup-chip active" type="button" data-team="0">TỬ
                     CHIẾN</button>
@@ -101,39 +106,74 @@
                   </div>
                 </div>
               </div>
-              <div class="setup-group" id="setup-bots-group"><span class="setup-label">SỐ BOT</span>
-                <div class="setup-dd"><button class="setup-chip setup-dd-trigger" type="button" aria-haspopup="true"
-                    aria-expanded="false"><span id="dd-bots-label">3 BOT</span><i class="setup-caret"
-                      aria-hidden="true">▾</i></button>
-                  <div class="setup-dd-menu" hidden><button class="setup-dd-item" type="button" data-bots="1">1
-                      BOT</button><button class="setup-dd-item" type="button" data-bots="2">2 BOT</button><button
-                      class="setup-dd-item active" type="button" data-bots="3">3 BOT</button><button class="setup-dd-item"
-                      type="button" data-bots="4">4 BOT</button><button class="setup-dd-item" type="button" data-bots="5">5
-                      BOT</button><button class="setup-dd-item" type="button" data-bots="6">6 BOT</button><label
-                      class="setup-dd-custom"><span>TÙY CHỌN</span><input id="setup-bots-input" class="setup-input"
-                        type="number" inputmode="numeric" step="1" min="1" max="10"
-                        aria-label="Nhập số bot (tối đa 10)"><span>/ 10</span></label></div>
+
+              <!-- PHẦN THIẾT LẬP DÀNH RIÊNG CHO BOT -->
+              <div id="bot-setup-container">
+                <div class="setup-group"><span class="setup-label">ĐỘ KHÓ BOT</span>
+                  <div class="setup-options" role="group"><button class="setup-chip" type="button"
+                      data-difficulty="easy">EASY</button><button class="setup-chip active" type="button"
+                      data-difficulty="medium">MEDIUM</button><button class="setup-chip" type="button"
+                      data-difficulty="hard">HARD</button><button class="setup-chip" type="button"
+                      data-difficulty="extreme">EXTREME</button></div>
                 </div>
+                <div class="setup-group" id="setup-bots-group"><span class="setup-label">SỐ BOT</span>
+                  <div class="setup-dd"><button class="setup-chip setup-dd-trigger" type="button" aria-haspopup="true"
+                      aria-expanded="false"><span id="dd-bots-label">3 BOT</span><i class="setup-caret"
+                        aria-hidden="true">▾</i></button>
+                    <div class="setup-dd-menu" hidden><button class="setup-dd-item" type="button" data-bots="1">1
+                        BOT</button><button class="setup-dd-item" type="button" data-bots="2">2 BOT</button><button
+                        class="setup-dd-item active" type="button" data-bots="3">3 BOT</button><button class="setup-dd-item"
+                        type="button" data-bots="4">4 BOT</button><button class="setup-dd-item" type="button" data-bots="5">5
+                        BOT</button><button class="setup-dd-item" type="button" data-bots="6">6 BOT</button><label
+                        class="setup-dd-custom"><span>TÙY CHỌN</span><input id="setup-bots-input" class="setup-input"
+                          type="number" inputmode="numeric" step="1" min="1" max="10"
+                          aria-label="Nhập số bot (tối đa 10)"><span>/ 10</span></label></div>
+                  </div>
+                </div>
+                <div class="setup-group" id="setup-time-group"><span class="setup-label" id="setup-time-label">THỜI GIAN
+                    TRẬN</span>
+                  <div class="setup-dd"><button class="setup-chip setup-dd-trigger" type="button" aria-haspopup="true"
+                      aria-expanded="false"><span id="dd-time-label">5 PHÚT</span><i class="setup-caret"
+                        aria-hidden="true">▾</i></button>
+                    <div class="setup-dd-menu" hidden>
+                      <div id="setup-time-options" class="setup-dd-list" role="group"></div><label
+                        class="setup-dd-custom"><span>TÙY CHỌN</span><input id="setup-time-input" class="setup-input"
+                          type="number" inputmode="decimal" step="0.5" min="1" max="20"
+                          aria-label="Nhập số phút (tối đa 20)"><span>PHÚT</span></label>
+                    </div>
+                  </div>
+                </div>
+                <div class="setup-group" id="setup-rounds-group" hidden><span class="setup-label">SỐ ROUND</span>
+                  <div class="setup-options" id="setup-rounds-options" role="group"></div><label class="setup-custom"><input
+                      id="setup-rounds-input" class="setup-input" type="number" inputmode="numeric" step="1" min="1" max="20"
+                      aria-label="Nhập số ván"><span id="setup-rounds-need"></span></label>
+                </div>
+                <p id="setup-hint" class="setup-hint"></p>
               </div>
-              <div class="setup-group" id="setup-time-group"><span class="setup-label" id="setup-time-label">THỜI GIAN
-                  TRẬN</span>
-                <div class="setup-dd"><button class="setup-chip setup-dd-trigger" type="button" aria-haspopup="true"
-                    aria-expanded="false"><span id="dd-time-label">5 PHÚT</span><i class="setup-caret"
-                      aria-hidden="true">▾</i></button>
-                  <div class="setup-dd-menu" hidden>
-                    <div id="setup-time-options" class="setup-dd-list" role="group"></div><label
-                      class="setup-dd-custom"><span>TÙY CHỌN</span><input id="setup-time-input" class="setup-input"
-                        type="number" inputmode="decimal" step="0.5" min="1" max="20"
-                        aria-label="Nhập số phút (tối đa 20)"><span>PHÚT</span></label>
+
+              <!-- PHẦN GHÉP PHÒNG PVP -->
+              <div id="matchmaking-container" class="matchmaking-container" hidden>
+                <div class="mm-card">
+                  <div class="mm-badge"><span class="mm-live-dot"></span><span id="mm-badge-text">GHÉP PHÒNG TỬ CHIẾN (1V1)</span></div>
+                  <div class="mm-radar-area">
+                    <div class="mm-radar" id="mm-radar">
+                      <div class="mm-radar-sweep"></div>
+                      <div class="mm-radar-ring mm-ring-1"></div>
+                      <div class="mm-radar-ring mm-ring-2"></div>
+                      <div class="mm-radar-center">⚔️</div>
+                    </div>
+                    <div class="mm-info-block">
+                      <div class="mm-status" id="mm-status-text">SẴN SÀNG TÌM ĐỐI THỦ</div>
+                      <div class="mm-timer" id="mm-timer" hidden>00:00</div>
+                      <p class="mm-subtext" id="mm-subtext">Hàng chờ 1v1 PvP ngẫu nhiên. Cần 2 người chơi.</p>
+                    </div>
+                  </div>
+                  <div class="mm-actions">
+                    <button class="primary-button mm-btn-start" id="mm-start-btn" type="button">⚔️ TÌM TRẬN TỬ CHIẾN</button>
+                    <button class="secondary-button mm-btn-cancel" id="mm-cancel-btn" type="button" hidden>✕ HỦY TÌM TRẬN</button>
                   </div>
                 </div>
               </div>
-              <div class="setup-group" id="setup-rounds-group" hidden><span class="setup-label">SỐ ROUND</span>
-                <div class="setup-options" id="setup-rounds-options" role="group"></div><label class="setup-custom"><input
-                    id="setup-rounds-input" class="setup-input" type="number" inputmode="numeric" step="1" min="1" max="20"
-                    aria-label="Nhập số ván"><span id="setup-rounds-need"></span></label>
-              </div>
-              <p id="setup-hint" class="setup-hint"></p>
             </div>
             <div id="online-match-setup" class="online-match-setup" hidden aria-label="Thiết lập trận online">
               <p class="online-setup-note">CHỌN PHE TRƯỚC, SAU ĐÓ BỎ PHIẾU BẢN ĐỒ</p>

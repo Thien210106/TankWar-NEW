@@ -13,7 +13,7 @@ window.TankWarTestGame = Object.freeze({
   cameraZoom: 0.2,
   // The browser test uses half-size tanks, including matching collision.
   tankRenderScale: 0.5,
-  collisionRadius: 60,
+  collisionRadius: 36,
 
   // ---- In-match music playlist ---------------------------------------------
   // Tracks play one after another and loop back to the first (2-3 tracks is fine). Every new match starts on the
