@@ -227,7 +227,7 @@
   const announceQueue = [];
   let announceBusy = false, announceGen = 0, announceTimer = 0;
   const ANNOUNCE_MIN_MS = 1000;   // every announcement stays at least this long, so its banner can be read
-  const ANNOUNCE_BANNER_MS = 2000;   // how long a kill banner stays on screen (2s) when no newer announcement replaces it
+  const ANNOUNCE_BANNER_MS = 3000;   // how long a kill banner stays on screen (3s) when no newer announcement replaces it
   let killAudioCtx = null;
   const killTracker = new Map();
   const streakTracker = new Map();
