@@ -1857,155 +1857,517 @@ body:not(.in-game):has(.lobby-screen:not([hidden])) .brand {
   .team-row { grid-template-columns:56px minmax(0,1fr); gap:4px; padding:4px; }
 }
 
+/* Viewport game shell -------------------------------------------------------
+   Menu screens are game scenes, not document pages.  Earlier art-first
+   rules left several panels with 780px/100vh minimum heights, so a regular
+   16:9 browser showed the native page scroll bars.  Keep one fixed scene in
+   the viewport and let only genuine long lists scroll inside their frame. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
 
-/* ---- Matchmaking Container Styles ---- */
-.matchmaking-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 10px;
+body:not(.in-game) .app-shell {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
 }
-.matchmaking-container[hidden] {
-  display: none !important;
+
+body:not(.in-game) main {
+  min-height: 0;
+  overflow: hidden;
 }
-.mm-card {
-  background: rgba(16, 24, 18, 0.92);
-  border: 1px solid #3d5236;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+
+body:not(.in-game) main > .screen:not([hidden]) {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
 }
-.mm-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font: 700 11px 'IBM Plex Mono', monospace;
-  color: #c7f36b;
-  letter-spacing: 1px;
+
+/* Find room: both supplied gold frames remain fully visible, with all form
+   controls inside their safe area. */
+.lobby-screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(8px, 1.5vh, 16px);
+  padding: clamp(12px, 2.2vh, 24px) 0 clamp(74px, 9vh, 100px) !important;
 }
-.mm-live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #c7f36b;
-  box-shadow: 0 0 8px #c7f36b;
-  animation: mmDotPulse 1.2s ease-in-out infinite alternate;
+
+.lobby-screen .page-heading {
+  margin: 0;
+  min-height: 0;
 }
-@keyframes mmDotPulse {
-  from { opacity: 0.4; transform: scale(0.85); }
-  to { opacity: 1; transform: scale(1.15); }
+
+.lobby-screen .page-heading h1 {
+  font-size: clamp(35px, 3vw, 52px);
 }
-.mm-radar-area {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 0;
+
+.lobby-screen .lobby-grid {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  grid-template-columns: minmax(0, 1.5fr) minmax(400px, .7fr);
+  gap: clamp(14px, 1.5vw, 28px);
 }
-.mm-radar {
+
+.lobby-screen .asset-panel,
+.lobby-screen .asset-panel-wide,
+.lobby-screen .asset-panel-portrait {
+  min-height: 0 !important;
+  height: 100%;
+  aspect-ratio: auto !important;
+}
+
+.lobby-screen .asset-panel-wide {
+  padding: clamp(52px, 7%, 84px) clamp(50px, 6%, 88px) clamp(44px, 6%, 78px);
+}
+
+.lobby-screen .asset-panel-wide .room-list {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+}
+
+.lobby-screen .asset-panel-portrait > .create-room-content {
+  top: 11%;
+  right: 12%;
+  bottom: 9%;
+  left: 12%;
+}
+
+.create-room-content .panel-heading { margin-bottom: clamp(10px, 2vh, 20px) !important; }
+.create-room-content input,
+.create-room-content select { height: clamp(38px, 5vh, 48px) !important; margin-bottom: clamp(7px, 1.5vh, 14px) !important; }
+.create-room-content .primary-button { min-height: clamp(54px, 7vh, 76px) !important; }
+
+/* Ready room uses the same single-scene geometry. */
+.room-screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(8px, 1.5vh, 16px);
+  min-height: 0 !important;
+  padding: clamp(12px, 2.2vh, 24px) 0 !important;
+}
+
+.room-screen .page-heading { margin: 0; }
+.room-screen .room-grid { min-height: 0; height: 100%; }
+.room-screen .room-asset-panel { min-height: 0 !important; height: 100%; }
+.room-screen .room-asset-panel-wide { padding: 9% 8% 8%; }
+.room-screen .room-asset-panel-portrait { padding: 10% 10% 8%; }
+
+/* Tank and map selection scale into the current game viewport instead of
+   requesting a document taller than the screen. */
+.tank-select-screen {
+  min-height: 0 !important;
+  padding: clamp(10px, 2vh, 22px) 0 !important;
+  overflow: hidden;
+}
+
+.tank-select-layout {
+  min-height: 0;
+  height: 100%;
+  align-items: stretch;
+}
+
+.tank-assembly-card,
+.tank-selection-card {
+  min-height: 0 !important;
+  height: 100%;
+}
+
+.map-screen {
+  min-height: 0 !important;
+  padding: clamp(12px, 2.2vh, 28px) 0 !important;
+  overflow: hidden;
+}
+
+.map-layout {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  align-items: stretch;
+}
+
+.map-asset-panel {
+  min-height: 0;
+  height: 100%;
+}
+
+.map-picker .map-choice-grid {
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.map-picker .map-choice {
+  min-height: 0;
+  height: auto;
+}
+
+.map-screen.online-map-mode .map-picker .map-choice-grid {
+  max-height: none;
+  overflow-y: auto;
+  grid-template-rows: none;
+}
+
+@media (max-width: 1180px) {
+  body:not(.in-game) { overflow: auto; }
+  body:not(.in-game) .app-shell,
+  body:not(.in-game) main,
+  body:not(.in-game) main > .screen:not([hidden]) { height: auto; max-height: none; overflow: visible; }
+  .lobby-screen,
+  .room-screen { display: block; }
+  .lobby-screen .lobby-grid,
+  .room-screen .room-grid { height: auto; }
+  .lobby-screen .asset-panel,
+  .lobby-screen .asset-panel-wide,
+  .lobby-screen .asset-panel-portrait,
+  .room-screen .room-asset-panel { height: auto; min-height: 520px !important; }
+  .tank-select-layout,
+  .tank-assembly-card,
+  .tank-selection-card,
+  .map-layout,
+  .map-asset-panel { height: auto; }
+}
+
+/* Final menu proportions: the three entry actions are one balanced central
+   stack.  Artwork is contained, so each control has the same hit area while
+   keeping the supplied button art recognisable. */
+.home-layout {
+  height: 100%;
+  min-height: 0 !important;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
   position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  border: 2px solid #3d5236;
-  background: radial-gradient(circle, rgba(40, 60, 35, 0.5) 0%, rgba(10, 16, 11, 0.9) 80%);
+}
+
+.home-layout .menu-card {
+  position: absolute;
+  top: clamp(148px, 18vh, 190px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(860px, 88vw);
+}
+
+.home-layout .asset-menu-button,
+.home-layout .asset-exit {
+  width: min(860px, 88vw);
+  height: clamp(172px, 20vh, 208px);
+  margin: 0 0 clamp(10px, 1.7vh, 16px);
+}
+
+.home-layout .asset-menu-button img,
+.home-layout .asset-exit img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Exit is a standalone scene action in the room finder.  It belongs in the
+   empty top-right area instead of competing with either gold frame. */
+.lobby-screen #lobby-back {
+  position: fixed;
+  top: clamp(84px, 10vh, 112px);
+  right: clamp(22px, 3vw, 64px);
+  bottom: auto;
+  z-index: 40;
+  width: min(220px, 17vw);
+  height: auto;
+  margin: 0;
+}
+
+.lobby-screen #lobby-back img { display: block; width: 100%; height: auto; }
+
+/* The Cấm Địa path has one map only.  Give that sole choice the complete
+   map-frame interior instead of reserving two invisible map rows. */
+.map-screen {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  transition: all .3s;
 }
-.mm-radar-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px dashed rgba(199, 243, 107, 0.25);
+
+.map-layout {
+  width: min(1480px, 88vw);
+  height: min(760px, 86vh);
+  grid-template-columns: minmax(410px, .55fr) minmax(650px, 1fr);
+  flex: 0 1 auto;
 }
-.mm-ring-1 {
-  width: 46px;
-  height: 46px;
-}
-.mm-ring-2 {
-  width: 24px;
-  height: 24px;
-}
-.mm-radar-center {
-  position: relative;
-  z-index: 2;
-  font-size: 20px;
-}
-.mm-radar.searching .mm-radar-sweep {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: conic-gradient(from 0deg at 50% 50%, rgba(199, 243, 107, 0.45) 0deg, transparent 65deg);
-  animation: mmRadarSpin 1.6s linear infinite;
-  border-radius: 50%;
-}
-.mm-radar.searching {
-  border-color: #c7f36b;
-  box-shadow: 0 0 16px rgba(199, 243, 107, 0.4);
-}
-@keyframes mmRadarSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-.mm-info-block {
+
+.map-picker {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  min-height: 0;
 }
-.mm-status {
-  font: 700 13px 'IBM Plex Mono', monospace;
-  color: #fff;
+
+.map-picker .map-choice-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+/* Four online votes are intentionally a compact internal list, never a
+   fourth implicit grid row that can overlap the supplied map frame. */
+.map-screen.online-map-mode .map-picker .map-choice-grid {
+  display: flex;
+  flex-direction: column;
+  grid-template-rows: none;
+  overflow-y: auto;
+  /* The scroll area must stop inside the artwork's inner lower edge. */
+  margin-bottom: 0;
+  padding-bottom: 6px;
+}
+
+.map-screen.online-map-mode .map-picker {
+  box-sizing: border-box;
+  overflow: hidden;
+  /* Reserve the artwork's lower metal band; the scrollable list never
+     reaches or paints over it. */
+  padding-bottom: clamp(48px, 6vh, 72px);
+}
+
+/* The native scrollbar has its own end caps.  Move its viewport, not just
+   the cards, clear of the lower-right corner decoration. */
+.map-screen.online-map-mode .map-picker .map-choice-grid {
+  /* The frame's bottom bevel sits higher than the PNG canvas boundary. */
+  flex: 0 0 calc(100% - 180px);
+  max-height: calc(100% - 180px);
+  transform: none;
+}
+
+.map-screen:has(.map-choice.camdia:not([hidden])) .map-choice-grid {
+  /* Cấm Địa is one normal map card, not a stretched full-panel tile. */
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  align-content: start;
+}
+
+.map-screen:has(.map-choice.camdia:not([hidden])) .map-choice.camdia {
+  min-height: 0;
+  height: auto;
+}
+
+.map-screen:has(.map-choice.camdia:not([hidden])) .map-choice-camdia {
+  inset: auto;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 64px;
+  width: min(48%, 350px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 5px;
+  text-align: left;
+}
+
+.map-screen:has(.map-choice.camdia:not([hidden])) .map-choice-camdia strong {
+  font: 900 clamp(34px, 3vw, 48px)/.88 'Barlow Condensed', sans-serif;
   letter-spacing: 1px;
 }
-.mm-timer {
-  font: 700 22px 'IBM Plex Mono', monospace;
-  color: #c7f36b;
-  text-shadow: 0 0 10px rgba(199, 243, 107, 0.6);
-  letter-spacing: 2px;
-}
-.mm-subtext {
+
+.map-screen:has(.map-choice.camdia:not([hidden])) .map-choice-camdia small {
   margin: 0;
-  font: 400 11px sans-serif;
-  color: #8c9e84;
-  line-height: 1.4;
+  font-size: 11px;
 }
-.mm-actions {
+
+/* Keep the complete create-room action inside the illustrated gold frame. */
+.lobby-screen .asset-panel-portrait > .create-room-content {
+  top: 12%;
+  right: 12%;
+  bottom: 15%;
+  left: 12%;
+}
+
+/* The ready room is only the two framed working areas; the old page title,
+   TankWar wordmark and the decorative mini-map do not belong to this view. */
+body:not(.in-game):has(.room-screen:not([hidden])) .topbar {
+  display: none;
+}
+
+.room-screen {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
 }
-.mm-btn-start {
-  width: 100%;
-  padding: 12px;
-  font: 700 13px 'IBM Plex Mono', monospace;
-  letter-spacing: 1.5px;
-  background: #c7f36b;
-  color: #0f180f;
-  border: none;
-  cursor: pointer;
-  transition: all .2s;
+
+.room-screen .page-heading,
+.room-screen .briefing-map {
+  display: none;
 }
-.mm-btn-start:hover {
-  background: #d8ff85;
-  box-shadow: 0 0 16px rgba(199, 243, 107, 0.4);
+
+.room-screen .room-grid {
+  width: min(1740px, 91vw);
+  height: min(680px, 76vh);
+  grid-template-columns: minmax(0, 1.55fr) minmax(440px, .74fr);
+  gap: clamp(20px, 2vw, 34px);
 }
-.mm-btn-cancel {
-  width: 100%;
-  padding: 12px;
-  font: 700 13px 'IBM Plex Mono', monospace;
-  letter-spacing: 1.5px;
-  background: #8b2b2b;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  transition: all .2s;
+
+.room-screen .room-asset-panel-wide { padding: 10% 8% 9%; }
+.room-screen .room-asset-panel-portrait { padding: 12% 10% 10%; }
+
+/* The loadout is intentionally smaller than the battlefield backdrop and
+   always remains fully inside the viewport. */
+.tank-select-layout {
+  width: min(1340px, 88vw);
+  height: min(760px, 82vh);
+  max-width: none;
+  gap: clamp(16px, 1.5vw, 24px);
 }
-.mm-btn-cancel:hover {
-  background: #b53838;
-  box-shadow: 0 0 16px rgba(255, 60, 60, 0.4);
+
+.tank-assembly-card { padding: 18px; }
+.tank-assembly-stage { width: min(100%, 350px); }
+.tank-selection-card { padding: 16px 22px 12px; }
+.tank-selection-card .garage-name-plate { min-height: 118px; margin: 0 0 12px; padding-top: 56px; }
+.tank-selection-card .garage-name-title { width: min(178px, 48%); }
+.tank-selection-card .part-picker { margin: 8px 0; }
+.tank-selection-card .part-option { min-height: 76px; }
+.tank-selection-card .part-option img { width: 58px; height: 58px; }
+.tank-selection-card [data-gun="01"] img { width: 25px; height: 54px; }
+.tank-selection-card .asset-action,
+.tank-selection-card .garage-exit { height: 82px; }
+.tank-selection-card .asset-action { margin: 25px auto 0; }
+.tank-selection-card .garage-exit {
+  width: min(285px, 100%);
+  margin: 12px auto 0;
+}
+
+@media (max-width: 1180px) {
+  .home-layout .asset-menu-button,
+  .home-layout .asset-exit { width: min(620px, 86vw); height: 132px; }
+  .tank-select-layout { width: min(720px, 92vw); height: auto; }
+  .map-layout { width: min(720px, 92vw); height: auto; }
+  .room-screen .room-grid { width: min(720px, 92vw); height: auto; }
+  .home-layout .menu-card { position: static; transform: none; }
+  .lobby-screen #lobby-back { position: absolute; top: auto; right: 0; bottom: 14px; }
+}
+
+/* The start actions are a foreground layer of the home scene.  Keeping this
+   out of the responsive document flow prevents a browser zoom breakpoint
+   from placing the entire menu below the clipped scene. */
+body:not(.in-game):has(.home-layout:not([hidden])) .home-layout .menu-card {
+  position: fixed !important;
+  top: clamp(150px, 21vh, 210px);
+  left: 50%;
+  z-index: 60;
+  display: flex !important;
+  width: min(860px, 88vw);
+  transform: translateX(-50%) !important;
+}
+
+/* Loadout actions ----------------------------------------------------------
+   Both menu PNGs have a different native canvas ratio.  The old fixed widths
+   stretched them (especially the green start asset), so they did not match
+   the clean, undistorted controls on the home screen.  Give both controls the
+   same canvas height and derive their width from the artwork ratio. */
+.tank-selection-card {
+  --loadout-action-height: clamp(96px, 12.5vh, 118px);
+}
+
+.tank-selection-card .asset-action,
+.tank-selection-card .garage-exit {
+  height: var(--loadout-action-height);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.tank-selection-card .asset-action {
+  width: min(100%, calc(var(--loadout-action-height) + var(--loadout-action-height) + var(--loadout-action-height)));
+  margin-top: clamp(14px, 2vh, 22px);
+}
+
+.tank-selection-card .garage-exit {
+  width: min(100%, calc(var(--loadout-action-height) + var(--loadout-action-height)));
+  margin-top: clamp(8px, 1.2vh, 12px);
+}
+
+.tank-selection-card .asset-action img,
+.tank-selection-card .garage-exit img {
+  object-fit: contain;
+}
+
+/* khungchonmap2.png contains transparent bands above and below its usable
+   border.  Extending the frame downward keeps the third map card inside the
+   green-metal boundary at desktop proportions. */
+.map-asset-panel-wide .map-panel-frame {
+  top: -15%;
+  height: 134%;
+}
+
+/* Results scene ------------------------------------------------------------
+   Keep the report focused on the verdict, stats, leaderboard and actions.
+   The baked battlefield title remains in the supplied background artwork, so
+   the duplicate status/copy lines are deliberately omitted. */
+body:not(.in-game):has(.results-screen:not([hidden])) .topbar {
+  height: 54px;
+  justify-content: flex-end;
+}
+
+body:not(.in-game):has(.results-screen:not([hidden])) .brand {
+  display: none;
+}
+
+body:not(.in-game):has(.results-screen:not([hidden])) .site-footer {
+  display: none;
+}
+
+.results-kicker[hidden],
+.results-card > #results-summary,
+.results-card > #results-title {
+  display: none !important;
+}
+
+.results-screen {
+  min-height: 0 !important;
+  padding: clamp(8px, 1.2vh, 14px) 0 10px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.results-card,
+.results-card.wide {
+  width: min(1080px, 88vw);
+  padding: 0 !important;
+}
+
+.results-card h1 {
+  margin: 0 0 clamp(12px, 1.5vh, 16px);
+}
+
+.results-stats {
+  margin: 0 0 clamp(12px, 1.5vh, 16px);
+}
+
+.results-lol {
+  margin-bottom: clamp(8px, 1vh, 12px);
+}
+
+.results-actions {
+  margin: 0;
+}
+
+/* Keep the return action on the scene centreline; the exit control occupies
+   its own equal-width grid column so it cannot pull the main action left. */
+@media (min-width: 701px) {
+  .results-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .results-actions #results-back { grid-column: 2; }
+  .results-actions #results-exit { grid-column: 3; justify-self: end; }
 }
