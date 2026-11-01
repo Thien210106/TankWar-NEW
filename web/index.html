@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111813">
   <title>TankWar</title>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
 </head>
 
 <body>
@@ -341,6 +341,7 @@
             <div class="arena-corner br"></div><canvas id="game-canvas" width="832" height="576" tabindex="0"
               aria-label="Màn hình TankWar"></canvas>
             <div id="match-clock" class="match-clock" aria-label="Thời gian trận đấu">00:00</div>
+            <div id="kill-board" class="kill-board" hidden aria-label="Tổng số hạ gục của hai phe"><b id="kb-blue" class="kb-cell blue">0</b><span class="kb-mid"><svg viewBox="0 0 16 16" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l9 9M13 3l-9 9"/><path d="M9.4 13.6l4.2-4.2M2.4 9.4l4.2 4.2"/></g></svg></span><b id="kb-red" class="kb-cell red">0</b></div>
             <div id="round-score" class="round-score" hidden aria-label="Tỷ số các ván"><span id="round-label"
                 class="round-label">ROUND 1/5</span><strong class="round-wins"><span id="round-wins-me"
                   class="me">0</span><i>:</i><span id="round-wins-enemy" class="enemy">0</span></strong><span
@@ -503,7 +504,7 @@
     </main>
   </div>
   <script src="testgame.js?v=17"></script>
-  <script src="app.js?v=29"></script>
+  <script src="app.js?v=30"></script>
 </body>
 
 </html>
