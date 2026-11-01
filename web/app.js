@@ -4270,11 +4270,15 @@ function chooseOfflineMap(mapId) {
 
   // Small defaults are remembered locally for the next session.
   $('player-name').value = localStorage.getItem('tankwar-name') || '';
-  const defaultWsUrl = (window.location && window.location.host)
-    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
-    : 'ws://localhost:3000';
+  const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const pageHost = window.location.hostname || 'localhost';
+  const defaultWsUrl = `${pageProtocol}//${pageHost}:8081`;
   const savedServer = localStorage.getItem('tankwar-server');
-  $('server-url').value = (savedServer && !savedServer.includes('localhost:8080')) ? savedServer : defaultWsUrl;
+  // Static Web servers commonly run on 5173; do not default WebSocket traffic to that port.
+  const invalidSavedDefaults = ['ws://localhost:5173', 'ws://127.0.0.1:5173', 'wss://localhost:5173', 'wss://127.0.0.1:5173'];
+  $('server-url').value = savedServer && !invalidSavedDefaults.includes(savedServer)
+    ? savedServer
+    : defaultWsUrl;
   refreshBotSetup();
   refreshTankAssembly();
   refreshSoundToggle();

@@ -90,7 +90,7 @@ testProtocolSerialization = do
       decodedLogin = decode encodedLogin :: Maybe ClientMessage
   assertEq "CLogin JSON roundtrip" decodedLogin (Just loginMsg)
 
-  let inputMsg = CPlayerInput (PlayerInput True False False True 1.57 True)
+  let inputMsg = CPlayerInput (PlayerInput True False False True 1.57 True False)
       encodedInput = encode inputMsg
       decodedInput = decode encodedInput :: Maybe ClientMessage
   assertEq "CPlayerInput JSON roundtrip" decodedInput (Just inputMsg)

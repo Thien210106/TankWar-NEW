@@ -177,31 +177,6 @@ data TankColor
   deriving (Show, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
 
 --------------------------------------------------------------------------------
--- Xe tăng (Tank)
---------------------------------------------------------------------------------
-
--- | Trạng thái đầy đủ của một xe tăng trong trận đấu.
-data Tank = Tank
-  { tankId         :: !Text
-    -- ^ Unique identifier (= username / connection ID)
-  , tankPos        :: !Vec2
-    -- ^ Vị trí tâm xe tăng trên bản đồ
-  , tankVel        :: !Vec2
-    -- ^ Vận tốc hiện tại
-  , tankBodyAngle  :: {-# UNPACK #-} !Float
-    -- ^ Góc xoay thân xe (radian)
-  , tankTurretAngle :: {-# UNPACK #-} !Float
-    -- ^ Góc xoay nòng pháo (radian, theo chuột)
-  , tankColor      :: !TankColor
-  , tankWeapon     :: !WeaponState
-  , tankAlive      :: !Bool
-  , tankScore      :: {-# UNPACK #-} !Int
-    -- ^ Số round thắng (first to N wins)
-  , tankKills      :: {-# UNPACK #-} !Int
-    -- ^ Tổng kills trong match hiện tại
-  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
-
---------------------------------------------------------------------------------
 -- Đạn đang bay (Bullet)
 --------------------------------------------------------------------------------
 

@@ -400,8 +400,8 @@ spawnBullets tank btype = do
       angle = tankTurretAngle tank
       dir   = Vec2 (cos angle) (sin angle)
       -- Offset an toàn trong bán kính thân xe (tankRadius = 15) để đạn không bao giờ xuyên qua tường khi đứng sát
-      let spawnOffset = 12.0 :: Float
-      let spawnPos = vec2Add pos (vec2Scale spawnOffset dir)
+      spawnOffset = 12.0 :: Float
+      spawnPos = vec2Add pos (vec2Scale spawnOffset dir)
   case btype of
     NormalBullet -> return [mkBullet spawnPos dir bulletSpeed NormalBullet (tankId tank)]
 

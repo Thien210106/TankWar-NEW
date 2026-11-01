@@ -13,7 +13,7 @@ import Database.MongoDB   ( Pipe, Host(..), PortID(..), connect, close, access
                           , master, Action )
 import Data.Text          (Text, pack)
 import Data.IORef         (IORef, newIORef, readIORef, writeIORef)
-import Control.Exception  (bracket, SomeException, try)
+import Control.Exception  (bracket, SomeException, try, toException)
 import Control.Monad      (when, void)
 
 import qualified Common.Config as Cfg
@@ -52,9 +52,13 @@ connectMongo cfg = do
   pipe <- tryConnect cfg
   ref  <- newIORef pipe
   let pool = MongoPool cfg ref
-  putStrLn $ "[MongoDB] Kết nối thành công tới "
-           ++ mcHost cfg ++ ":" ++ show (mcPort cfg)
-           ++ "/" ++ show (mcDatabase cfg)
+  case pipe of
+    Just _ -> putStrLn $ "[MongoDB] Kết nối thành công tới "
+                       ++ mcHost cfg ++ ":" ++ show (mcPort cfg)
+                       ++ "/" ++ show (mcDatabase cfg)
+    Nothing -> putStrLn $ "[MongoDB] Không kết nối được. Server vẫn chạy ở chế độ không lưu trữ." 
+                       ++ " Kiểm tra MongoDB tại " ++ mcHost cfg ++ ":"
+                       ++ show (mcPort cfg) ++ " để bật lưu trữ."
   return pool
 
 -- | Thực thi một MongoDB Action trên pool.

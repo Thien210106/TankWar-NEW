@@ -350,6 +350,12 @@ cabal test
 
 ---
 
+## 📄 Tài liệu đồ án
+
+Nội dung trình bày chi tiết kiến trúc, eager/lazy evaluation, STM, WebSocket, MongoDB, kiểm thử và phân công trách nhiệm nằm tại [BAO_CAO_DO_AN.md](BAO_CAO_DO_AN.md).
+
+---
+
 ## 🗺️ Lộ trình phát triển (Roadmap)
 
 - [x] Chuyển đổi giao diện sang nền tảng **Web Browser (HTML5 Canvas)** tiện lợi, không phụ thuộc OpenGL/GLUT.

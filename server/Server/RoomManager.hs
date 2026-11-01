@@ -322,6 +322,18 @@ mkTank pid spawnPos color = Tank
   , tankAlive       = True
   , tankScore       = 0
   , tankKills       = 0
+  , tankDeaths      = 0
+  , tankAssists     = 0
+  , tankPoints      = 0
+  , tankKillStreak  = 0
+  , tankMultiKillCount  = 0
+  , tankMultiKillTimer  = 0
+  , tankRespawnTimer    = 0
+  , tankInvulnerabilityLeft = 0
+  , tankAmmo        = 6
+  , tankMaxAmmo     = 6
+  , tankReloadTimer = 0
+  , tankSurvivalCarry = 0
   }
 
 --------------------------------------------------------------------------------
