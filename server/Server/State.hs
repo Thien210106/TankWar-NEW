@@ -21,6 +21,7 @@ module Server.State
   , removeRoom
   , modifyRoom
   , addClient
+  , registerClient
   , removeClient
   , setClientRoom
   , clearClientRoom
@@ -173,6 +174,22 @@ addClient ss username conn =
     , ccConnection = conn
     , ccRoomId     = Nothing
     }
+
+-- | Register a new client only if its username is not currently in use.
+-- The lookup and insertion occur in one STM transaction, avoiding a race
+-- between two simultaneous WebSocket logins.
+registerClient :: ServerState -> Text -> WS.Connection -> STM Bool
+registerClient ss username conn = do
+  clients <- readTVar (ssClients ss)
+  if Map.member username clients
+    then pure False
+    else do
+      writeTVar (ssClients ss) $ Map.insert username ClientConn
+        { ccUsername = username
+        , ccConnection = conn
+        , ccRoomId = Nothing
+        } clients
+      pure True
 
 -- | Xoá client (khi WebSocket ngắt kết nối).
 removeClient :: ServerState -> Text -> STM ()

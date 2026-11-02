@@ -4333,7 +4333,13 @@ function chooseOfflineMap(mapId) {
   $('player-name').value = localStorage.getItem('tankwar-name') || '';
   const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const pageHost = window.location.hostname || 'localhost';
-  const defaultWsUrl = `${pageProtocol}//${pageHost}:8081`;
+  const isLocalHost = pageHost === 'localhost' || pageHost === '127.0.0.1' || pageHost === '[::1]';
+  // Production bundles the site and socket behind one HTTPS origin. This
+  // avoids a mixed-content error and makes the public game URL shareable.
+  // Local development still connects directly to the Haskell server.
+  const defaultWsUrl = isLocalHost
+    ? `${pageProtocol}//${pageHost}:8081`
+    : `${pageProtocol}//${pageHost}/ws`;
   const savedServer = localStorage.getItem('tankwar-server');
   // Static Web servers commonly run on 5173; do not default WebSocket traffic to that port.
   const invalidSavedDefaults = [

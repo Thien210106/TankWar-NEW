@@ -59,9 +59,25 @@ Online mode cần chạy server và MongoDB. Ở thư mục gốc dự án:
 
 Frontend gửi/nhận thông điệp theo dạng JSON tagged của `Aeson` trong `src/Common/Protocol.hs`; game state và vật lý online vẫn do Haskell server xử lý. Địa chỉ mặc định `ws://localhost:8081` chỉ dùng được khi server ở cùng máy. Nếu server ở máy khác, nhập `ws://IP-MAY-CHU:8081` và mở cổng phù hợp.
 
-### Khi triển khai website công khai
+### Đưa game lên Internet miễn phí (Render)
 
-Frontend tĩnh có thể triển khai từ riêng thư mục `web/` lên hosting HTTPS. Tuy nhiên, website HTTPS cần kết nối WebSocket bảo mật (`wss://`). Server Haskell trong repo đang mở WebSocket thường (`ws://`) trên cổng 8081; hãy đặt reverse proxy TLS hỗ trợ WebSocket trước server và nhập URL `wss://...` vào giao diện. Không nên mở trực tiếp cổng game ra Internet nếu chưa cấu hình mạng và firewall an toàn.
+Project đã có `Dockerfile`, `render.yaml` và reverse proxy nginx để đưa **cả website lẫn WebSocket** lên một Web Service duy nhất. Server game chỉ nghe ở cổng nội bộ `8080`; Internet chỉ thấy HTTPS/WSS của Render. Bạn bè chỉ cần mở một link, không cần nhập IP, mở port router hay cài gì thêm.
+
+1. Đẩy toàn bộ source lên một repository GitHub (không đưa `.stack-work/`, `data/` hoặc bí mật vào Git).
+2. Vào [Render](https://render.com/), kết nối GitHub, chọn **New → Blueprint** và chọn repository này. Render đọc `render.yaml`; chọn gói **Free**.
+3. Đợi deploy thành công. Mở URL `https://tankwar-...onrender.com` mà Render cấp và gửi đúng URL này cho bạn bè.
+4. Lần truy cập đầu sau khoảng 15 phút không có người chơi có thể mất khoảng một phút để máy chủ miễn phí khởi động lại. Trong lúc một trận đang diễn ra, lưu lượng WebSocket giữ service hoạt động.
+
+Nginx giới hạn số kết nối và tốc độ bắt tay WebSocket theo IP, chặn body HTTP lớn và chỉ cho proxy đường dẫn `/ws`; cổng game `8080` không được công khai. Render tự cấp TLS, nên client tự dùng `wss://<ten-mien>/ws` khi mở từ URL công khai. MongoDB là tùy chọn; server vẫn chạy và lưu lịch sử tạm bằng JSON, nhưng dữ liệu local của gói Free sẽ mất khi service ngủ hoặc redeploy.
+
+Để chạy thử cùng cấu hình Docker ở máy có Docker:
+
+```powershell
+docker build -t tankwar .
+docker run --rm -p 10000:10000 tankwar
+```
+
+Sau đó mở `http://localhost:10000`; WebSocket tự nối tới `ws://localhost:10000/ws`.
 
 ## 3. Tính năng & Cải tiến mới
 

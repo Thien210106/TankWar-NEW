@@ -53,6 +53,9 @@ data ClientMessage
   | CStartGame
     -- ^ Chủ phòng nhấn bắt đầu trận đấu
 
+  | CSelectMap !Text
+    -- ^ Chủ phòng chọn preset mê cung trước khi bắt đầu trận
+
   | CPlayerInput !PlayerInput
     -- ^ Gửi input điều khiển mỗi tick (WASD + Mouse + Fire)
 
