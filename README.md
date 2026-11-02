@@ -75,7 +75,7 @@ Phiên bản **Web Browser Edition** mang lại sự tiện lợi tối đa:
                     ▼                                ▼
 ┌──────────────────────────────────────┐  ┌──────────────────────────────────────┐
 │       Offline Practice Mode          │  │     Online WebSocket Multiplayer     │
-│ - Chạy hoàn toàn trên trình duyệt    │  │ - Kết nối ws://localhost:8080        │
+│ - Chạy hoàn toàn trên trình duyệt    │  │ - Kết nối ws://localhost:8081        │
 │ - Mô phỏng vật lý & bot bằng JS      │  │ - Máy chủ Haskell Authoritative 60Hz │
 │ - Thử nghiệm ngắm bắn & di chuyển    │  │ - Tạo / Tìm phòng có mã số & pass    │
 │ - Không cần MongoDB hay Server       │  │ - Lưu lịch sử trận vào MongoDB       │
@@ -154,7 +154,7 @@ Máy chủ (`tankwar-server`) quản lý danh sách phòng đa luồng, hỗ tr�
 ```text
                ┌──────────────────────────────────────┐
                │         TANKWAR HASKELL SERVER       │
-               │   (Port 8080: WebSockets + STM + DB) │
+               │   (Port 8081: WebSockets + STM + DB) │
                └──────────────────┬───────────────────┘
                                   │
          ┌────────────────────────┼────────────────────────┐
@@ -175,11 +175,11 @@ Máy chủ (`tankwar-server`) quản lý danh sách phòng đa luồng, hỗ tr�
 
 ## 🍃 Quản lý Dữ liệu với MongoDB
 
-Dự án kết nối MongoDB (`TankWar`) thông qua thư viện Haskell `mongoDB` và `bson`:
+Dự án kết nối MongoDB tại `mongodb://localhost:27017/TankWar` thông qua thư viện Haskell `mongoDB` và `bson`. Hồ sơ và kết quả trận được lưu chung trong collection `tankwar_server`, phân biệt bằng trường `type` (`player` hoặc `match`):
 
-- **Collection `players`:** Hồ sơ người chơi, tổng số trận, số ván thắng, số mạng hạ gục (kills), số lần tử trận (deaths) và số hộp bí ẩn đã nhặt.
-- **Collection `matches`:** Lưu lại thông tin phòng, thời gian bắt đầu/kết thúc, người chiến thắng, điểm số từng người và số vòng đã chơi.
-- **Collection `leaderboards`:** Xếp hạng các tay súng xuất sắc nhất theo số mạng tiêu diệt và tỉ lệ thắng.
+- **Loại `player`:** Hồ sơ người chơi, tổng số trận, số ván thắng, số mạng hạ gục (kills), số lần tử trận (deaths) và số hộp bí ẩn đã nhặt.
+- **Loại `match`:** Lưu lại thông tin phòng, thời gian bắt đầu/kết thúc, người chiến thắng, điểm số từng người và số vòng đã chơi.
+- **Bảng xếp hạng:** Được truy vấn từ hồ sơ `player` trong collection này, sắp xếp theo số trận thắng hoặc kills.
 
 ---
 
@@ -296,19 +296,23 @@ docker run -d -p 27017:27017 --name tankwar-mongo mongo:latest
 Mở một cửa sổ Terminal mới tại thư mục gốc dự án:
 
 ```powershell
+# Đặt PowerShell/Windows Console dùng UTF-8 để hiển thị tiếng Việt
+chcp 65001
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+
 # Sử dụng Stack (Khuyên dùng)
-stack exec tankwar-server -- --port 8080 --mongo-uri "mongodb://localhost:27017/TankWar"
+stack exec tankwar-server -- --port 8081 --mongo-uri "mongodb://localhost:27017/TankWar"
 
 # Hoặc sử dụng Cabal
-cabal run tankwar-server -- --port 8080 --mongo-uri "mongodb://localhost:27017/TankWar"
+cabal run tankwar-server -- --port 8081 --mongo-uri "mongodb://localhost:27017/TankWar"
 ```
 
-Khi server sẵn sàng, terminal sẽ thông báo lắng nghe tại cổng `8080` và kết nối thành công tới MongoDB.
+Khi server sẵn sàng, terminal sẽ thông báo lắng nghe tại cổng `8081` và kết nối thành công tới MongoDB.
 
 #### Bước 3: Mở Web Client & Kết nối
 
 1. Mở trình duyệt tại `http://localhost:5173/web/`.
-2. Nhập tên của bạn, giữ nguyên địa chỉ WebSocket `ws://localhost:8080`.
+2. Nhập tên của bạn, giữ nguyên địa chỉ WebSocket `ws://localhost:8081`.
 3. Nhấn **KẾT NỐI ONLINE**.
 4. Người chơi 1 bấm **TẠO PHÒNG MỚI**, sau đó gửi **Mã phòng** (ví dụ `TNK889`) cho bạn bè.
 5. Người chơi 2 mở trình duyệt (hoặc máy tính khác cùng mạng), nhập mã phòng và bấm **VÀO PHÒNG**.
@@ -345,7 +349,7 @@ cabal test
 - **WebSocket bảo mật:** Khi web client được phân phối qua giao thức HTTPS, trình duyệt bắt buộc phải kết nối WebSocket bảo mật (**`wss://`**).
 - Để triển khai Server ra Internet:
   1. Cấu hình Nginx / Caddy làm Reverse Proxy với chứng chỉ SSL/TLS miễn phí (Let's Encrypt).
-  2. Proxy đường truyền WebSocket từ cổng 443 về cổng nội bộ `8080` của Haskell Server.
+  2. Proxy đường truyền WebSocket từ cổng 443 về cổng nội bộ `8081` của Haskell Server.
   3. Người chơi nhập URL dạng `wss://yourdomain.com` vào ô cấu hình server trên web.
 
 ---

@@ -1,6 +1,12 @@
+C:\Users\Admin\AppData\Local\Programs\stack\x86_64-windows\ghc-9.4.8\lib\x86_64-windows-ghc-9.4.8\rts-1.0.2\include\ghcversion.h:
+  hash: 4bc88722407a89d1efbfa9c116cd4017af6ea3ff746643032b96cef62782f5dd
+C:\Users\Admin\Downloads\TankWar-NEW\.stack-work\dist\f1a1ac53\build\tankwar-test\autogen\Paths_tankwar.hs:
+  hash: c25648b8478b99436f29a3278b45197c6a6c984aabaed263f514a808553269f9
+C:\Users\Admin\Downloads\TankWar-NEW\.stack-work\dist\f1a1ac53\build\tankwar-test\autogen\cabal_macros.h:
+  hash: a430c03591e6b870e3c7972c98a896049c23f37147f2a6eafc25378947cafc20
 C:\Users\Admin\Downloads\TankWar-NEW\package.yaml:
   hash: a9f70c1c291ead3e98ce7ba413fc810b038887fbdaec8ed771c2ad05985438fd
 C:\Users\Admin\Downloads\TankWar-NEW\tankwar.cabal:
   hash: 5e513a7667099ae17a071aa6f963f190a0c24aa2cf137237d0dac3e574032566
 C:\Users\Admin\Downloads\TankWar-NEW\test\Spec.hs:
-  hash: 62f873a3766b3315b969ccba1d99a372e01d8b5b21bbdf1401b74b47bd365991
+  hash: f8afb71a2b2c671dbc089a27a31c2f42d7477f4c9ec49c5acc9c706ec88404f1

@@ -1,5 +1,5 @@
 -- | Server.Database.PlayerRepo
--- Thao tác CRUD cho collection "players" trong MongoDB.
+-- Thao tác CRUD hồ sơ trong collection "tankwar_server".
 -- Quản lý hồ sơ người chơi, thống kê kills/wins, bảng xếp hạng.
 module Server.Database.PlayerRepo
   ( findPlayer
@@ -25,8 +25,8 @@ import Server.Database.Connection
 -- Hằng số
 --------------------------------------------------------------------------------
 
-playersCol :: Collection
-playersCol = "players"
+serverCol :: Collection
+serverCol = "tankwar_server"
 
 --------------------------------------------------------------------------------
 -- Tìm người chơi theo username
@@ -36,7 +36,7 @@ playersCol = "players"
 findPlayer :: MongoPool -> Text -> IO (Maybe Document)
 findPlayer pool username = do
   result <- withMongo pool $
-    findOne (select ["username" =: username] playersCol)
+    findOne (select ["type" =: ("player" :: Text), "username" =: username] serverCol)
   case result of
     Right doc -> return doc
     Left  _   -> return Nothing
@@ -51,8 +51,9 @@ createPlayer pool username displayName = do
   now <- getCurrentTime
   let timeStr = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" now
   result <- withMongo pool $
-    insert playersCol
-      [ "username"    =: username
+    insert serverCol
+      [ "type"        =: ("player" :: Text)
+      , "username"    =: username
       , "displayName" =: displayName
       , "createdAt"   =: (timeStr :: String)
       , "stats"       =: statsDoc 0 0 0 0 0
@@ -73,7 +74,7 @@ createPlayer pool username displayName = do
 updatePlayerStats :: MongoPool -> Text -> Int -> Int -> Int -> Int -> IO ()
 updatePlayerStats pool username addMatches addWins addKills addDeaths = do
   _ <- withMongo pool $
-    modify (select ["username" =: username] playersCol)
+    modify (select ["type" =: ("player" :: Text), "username" =: username] serverCol)
       [ "$inc" =:
         [ "stats.totalMatches"   =: addMatches
         , "stats.wins"           =: addWins
@@ -87,7 +88,7 @@ updatePlayerStats pool username addMatches addWins addKills addDeaths = do
 addKill :: MongoPool -> Text -> IO ()
 addKill pool username = do
   _ <- withMongo pool $
-    modify (select ["username" =: username] playersCol)
+    modify (select ["type" =: ("player" :: Text), "username" =: username] serverCol)
       ["$inc" =: ["stats.kills" =: (1 :: Int)]]
   return ()
 
@@ -95,7 +96,7 @@ addKill pool username = do
 addDeath :: MongoPool -> Text -> IO ()
 addDeath pool username = do
   _ <- withMongo pool $
-    modify (select ["username" =: username] playersCol)
+    modify (select ["type" =: ("player" :: Text), "username" =: username] serverCol)
       ["$inc" =: ["stats.deaths" =: (1 :: Int)]]
   return ()
 
@@ -103,7 +104,7 @@ addDeath pool username = do
 addWin :: MongoPool -> Text -> IO ()
 addWin pool username = do
   _ <- withMongo pool $
-    modify (select ["username" =: username] playersCol)
+    modify (select ["type" =: ("player" :: Text), "username" =: username] serverCol)
       ["$inc" =: ["stats.wins" =: (1 :: Int), "stats.totalMatches" =: (1 :: Int)]]
   return ()
 
@@ -111,7 +112,7 @@ addWin pool username = do
 addBoxCollected :: MongoPool -> Text -> IO ()
 addBoxCollected pool username = do
   _ <- withMongo pool $
-    modify (select ["username" =: username] playersCol)
+    modify (select ["type" =: ("player" :: Text), "username" =: username] serverCol)
       ["$inc" =: ["stats.boxesCollected" =: (1 :: Int)]]
   return ()
 
@@ -123,7 +124,7 @@ addBoxCollected pool username = do
 getLeaderboard :: MongoPool -> Int -> IO [Document]
 getLeaderboard pool topN = do
   result <- withMongo pool $ do
-    cursor <- find (select [] playersCol)
+    cursor <- find (select ["type" =: ("player" :: Text)] serverCol)
       { sort  = ["stats.wins" =: (-1 :: Int)]
       , limit = fromIntegral topN
       }
@@ -136,7 +137,7 @@ getLeaderboard pool topN = do
 getTopKillers :: MongoPool -> Int -> IO [Document]
 getTopKillers pool topN = do
   result <- withMongo pool $ do
-    cursor <- find (select [] playersCol)
+    cursor <- find (select ["type" =: ("player" :: Text)] serverCol)
       { sort  = ["stats.kills" =: (-1 :: Int)]
       , limit = fromIntegral topN
       }

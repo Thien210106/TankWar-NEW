@@ -257,6 +257,7 @@ data GamePhase
 data RoomInfo = RoomInfo
   { riRoomId        :: !Text
   , riRoomName      :: !Text
+  , riGameMode      :: !Text
   , riMaxPlayers    :: {-# UNPACK #-} !Int
   , riCurrentPlayers :: {-# UNPACK #-} !Int
   , riHasPassword   :: !Bool
@@ -645,6 +646,7 @@ data GamePhase
 data RoomInfo = RoomInfo
   { riRoomId        :: !Text
   , riRoomName      :: !Text
+  , riGameMode      :: !Text
   , riMaxPlayers    :: {-# UNPACK #-} !Int
   , riCurrentPlayers :: {-# UNPACK #-} !Int
   , riHasPassword   :: !Bool

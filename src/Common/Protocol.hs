@@ -9,7 +9,7 @@ module Common.Protocol
   ) where
 
 import Data.Text    (Text)
-import Data.Aeson   (ToJSON, FromJSON)
+import Data.Aeson   (ToJSON, FromJSON, Value)
 import GHC.Generics (Generic)
 
 import Common.Types
@@ -30,6 +30,7 @@ data ClientMessage
       { ccrRoomName   :: !Text
       , ccrMaxPlayers :: !Int
       , ccrPassword   :: !(Maybe Text)
+      , ccrGameMode   :: !Text
         -- ^ Nothing = phòng public, Just pw = phòng riêng tư
       }
     -- ^ Tạo phòng mới
@@ -39,6 +40,11 @@ data ClientMessage
         -- ^ Mã phòng 6 ký tự
       , cjrPassword :: !(Maybe Text)
       }
+
+  | COpenDraft
+  | CTankReady
+  | CChooseTeam { cctTeam :: !Text }
+  | CMapVote { cmvMapId :: !Text }
     -- ^ Tham gia phòng theo Room ID
 
   | CLeaveRoom
@@ -88,6 +94,10 @@ data ServerMessage
     -- ^ Danh sách phòng hiện có
 
   | SRoomError !Text
+
+  | SRoomDraft !Value
+  | SDraftOpened
+  | SSelectedMap !Text
     -- ^ Lỗi tạo/vào phòng (sai pass, phòng đầy, không tồn tại...)
 
   | SRoomRoster ![(Text, TankColor)]

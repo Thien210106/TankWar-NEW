@@ -29,6 +29,14 @@ normalBulletCooldown = 0.5
 specialBulletCooldown :: Float
 specialBulletCooldown = 1.0
 
+-- | Thời gian nạp lại đầy băng đạn, khớp chế độ đấu nhanh.
+magazineReloadSeconds :: Float
+magazineReloadSeconds = 2.2
+
+-- | Số viên trong băng đạn tiêu chuẩn.
+magazineSize :: Int
+magazineSize = 6
+
 -- | Hàm tính thời gian hồi đạn theo loại vũ khí:
 -- Đạn thường 0.5 giây, đạn sự kiện Mystery Box 1.0 giây.
 weaponCooldown :: BulletType -> Float
@@ -61,15 +69,15 @@ shotgunSpreadAngle = 0.25   -- ≈ 14.3°
 
 -- | Tốc độ đạn tiêu chuẩn (pixel/giây).
 bulletSpeed :: Float
-bulletSpeed = 400.0
+bulletSpeed = 1220.0
 
 -- | Tốc độ đạn xuyên tường (chậm hơn một chút để cân bằng).
 wallPiercingSpeed :: Float
-wallPiercingSpeed = 350.0
+wallPiercingSpeed = 1067.0
 
--- | Số lần đạn thường được phép nảy tường trước khi biến mất.
+-- | Đạn không còn nảy; giữ trường cấu hình để tương thích protocol cũ.
 maxBulletBounces :: Int
-maxBulletBounces = 5
+maxBulletBounces = 0
 
 -- | Thời gian sống tối đa của đạn (giây).
 bulletMaxLifetime :: Float
@@ -93,7 +101,7 @@ laserSegmentMaxLen = 2000.0
 
 -- | Tốc độ di chuyển của xe tăng (pixel/giây).
 tankSpeed :: Float
-tankSpeed = 150.0
+tankSpeed = 450.0
 
 -- | Kích thước nửa cạnh (half-size) của hitbox vuông xe tăng.
 tankHalfSize :: Float
@@ -173,7 +181,7 @@ roundEndDelay = 3.0
 
 -- | Cổng WebSocket mặc định.
 defaultPort :: Int
-defaultPort = 8080
+defaultPort = 8081
 
 -- | Cổng MongoDB mặc định.
 defaultMongoPort :: Int

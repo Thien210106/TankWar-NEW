@@ -78,7 +78,7 @@ testWeaponCooldowns = do
   assertEq "Gatling bullet cooldown is 1.0s" (weaponCooldown GatlingBullet) 1.0
   assertEq "Buff duration is 15.0s" buffDuration 15.0
   assertEq "Gatling burst count is 3" gatlingBurstCount 3
-  assertEq "Max bullet bounces is 5" maxBulletBounces 5
+  assertEq "Bullet bouncing is disabled" maxBulletBounces 0
 
 testProtocolSerialization :: IO ()
 testProtocolSerialization = do
@@ -90,7 +90,7 @@ testProtocolSerialization = do
       decodedLogin = decode encodedLogin :: Maybe ClientMessage
   assertEq "CLogin JSON roundtrip" decodedLogin (Just loginMsg)
 
-  let inputMsg = CPlayerInput (PlayerInput True False False True 1.57 True False)
+  let inputMsg = CPlayerInput (PlayerInput True False False True 1.57 True True)
       encodedInput = encode inputMsg
       decodedInput = decode encodedInput :: Maybe ClientMessage
   assertEq "CPlayerInput JSON roundtrip" decodedInput (Just inputMsg)

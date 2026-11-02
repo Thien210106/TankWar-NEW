@@ -1,5 +1,5 @@
 -- | Server.Database.MatchRepo
--- Thao tác CRUD cho collection "matches" trong MongoDB.
+-- Thao tác CRUD lịch sử trận trong collection "tankwar_server".
 -- Lưu trữ lịch sử trận đấu và truy vấn kết quả.
 module Server.Database.MatchRepo
   ( saveMatchResult
@@ -18,8 +18,8 @@ import Server.Database.Connection
 -- Hằng số
 --------------------------------------------------------------------------------
 
-matchesCol :: Collection
-matchesCol = "matches"
+serverCol :: Collection
+serverCol = "tankwar_server"
 
 --------------------------------------------------------------------------------
 -- Lưu kết quả trận đấu
@@ -45,8 +45,9 @@ saveMatchResult pool roomId startTime winner players roundsPlayed = do
         | (uname, score, kills) <- players
         ]
   result <- withMongo pool $
-    insert matchesCol
-      [ "roomId"       =: roomId
+    insert serverCol
+      [ "type"         =: ("match" :: Text)
+      , "roomId"       =: roomId
       , "startTime"    =: startTime
       , "endTime"      =: (endTime :: String)
       , "winner"       =: winner
@@ -70,7 +71,7 @@ saveMatchResult pool roomId startTime winner players roundsPlayed = do
 getRecentMatches :: MongoPool -> Int -> IO [Document]
 getRecentMatches pool n = do
   result <- withMongo pool $ do
-    cursor <- find (select [] matchesCol)
+    cursor <- find (select ["type" =: ("match" :: Text)] serverCol)
       { sort  = ["endTime" =: (-1 :: Int)]
       , limit = fromIntegral n
       }
@@ -83,7 +84,7 @@ getRecentMatches pool n = do
 getPlayerMatches :: MongoPool -> Text -> Int -> IO [Document]
 getPlayerMatches pool username n = do
   result <- withMongo pool $ do
-    cursor <- find (select ["players.username" =: username] matchesCol)
+    cursor <- find (select ["type" =: ("match" :: Text), "players.username" =: username] serverCol)
       { sort  = ["endTime" =: (-1 :: Int)]
       , limit = fromIntegral n
       }

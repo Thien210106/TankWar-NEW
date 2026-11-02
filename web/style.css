@@ -1418,6 +1418,17 @@ body:not(.in-game):has(.lobby-screen:not([hidden])) .brand {
   margin-top: auto !important;
 }
 
+.room-mode-line {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  color: #9baa91;
+  background: rgba(10, 17, 10, .58);
+  border: 1px solid rgba(152, 180, 132, .27);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.room-mode-line strong { color: #c7f36b; }
+
 .create-room-content .create-test-button {
   width: 100%;
   min-height: 54px;

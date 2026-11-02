@@ -43,23 +43,25 @@ Online mode cần chạy server và MongoDB. Ở thư mục gốc dự án:
 2. Mở **một cửa sổ terminal khác** tại thư mục gốc dự án và khởi động Haskell server:
 
    ```powershell
-   stack exec tankwar-server -- --port 8080 --mongo-uri "mongodb://localhost:27017/TankWar"
+   chcp 65001
+   [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+   stack exec tankwar-server -- --port 8081 --mongo-uri "mongodb://localhost:27017/TankWar"
    ```
 
    Hoặc dùng Cabal:
 
    ```powershell
-   cabal run tankwar-server -- --port 8080 --mongo-uri "mongodb://localhost:27017/TankWar"
+   cabal run tankwar-server -- --port 8081 --mongo-uri "mongodb://localhost:27017/TankWar"
    ```
 
-3. Mở `http://localhost:5173/web/`, nhập tên người chơi. Để server mặc định là `ws://localhost:8080`, rồi nhấn **KẾT NỐI ONLINE**.
+3. Mở `http://localhost:5173/web/`, nhập tên người chơi. Để server mặc định là `ws://localhost:8081`, rồi nhấn **KẾT NỐI ONLINE**.
 4. Một người tạo phòng; người còn lại kết nối vào cùng server và nhập Room ID 6 ký tự. Chủ phòng bắt đầu khi có ít nhất 2 người.
 
-Frontend gửi/nhận thông điệp theo dạng JSON tagged của `Aeson` trong `src/Common/Protocol.hs`; game state và vật lý online vẫn do Haskell server xử lý. Địa chỉ mặc định `ws://localhost:8080` chỉ dùng được khi server ở cùng máy. Nếu server ở máy khác, nhập `ws://IP-MAY-CHU:8080` và mở cổng phù hợp.
+Frontend gửi/nhận thông điệp theo dạng JSON tagged của `Aeson` trong `src/Common/Protocol.hs`; game state và vật lý online vẫn do Haskell server xử lý. Địa chỉ mặc định `ws://localhost:8081` chỉ dùng được khi server ở cùng máy. Nếu server ở máy khác, nhập `ws://IP-MAY-CHU:8081` và mở cổng phù hợp.
 
 ### Khi triển khai website công khai
 
-Frontend tĩnh có thể triển khai từ riêng thư mục `web/` lên hosting HTTPS. Tuy nhiên, website HTTPS cần kết nối WebSocket bảo mật (`wss://`). Server Haskell trong repo đang mở WebSocket thường (`ws://`) trên cổng 8080; hãy đặt reverse proxy TLS hỗ trợ WebSocket trước server và nhập URL `wss://...` vào giao diện. Không nên mở trực tiếp cổng game ra Internet nếu chưa cấu hình mạng và firewall an toàn.
+Frontend tĩnh có thể triển khai từ riêng thư mục `web/` lên hosting HTTPS. Tuy nhiên, website HTTPS cần kết nối WebSocket bảo mật (`wss://`). Server Haskell trong repo đang mở WebSocket thường (`ws://`) trên cổng 8081; hãy đặt reverse proxy TLS hỗ trợ WebSocket trước server và nhập URL `wss://...` vào giao diện. Không nên mở trực tiếp cổng game ra Internet nếu chưa cấu hình mạng và firewall an toàn.
 
 ## 3. Tính năng & Cải tiến mới
 

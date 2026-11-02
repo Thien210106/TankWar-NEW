@@ -59,6 +59,10 @@ data ClientConn = ClientConn
 data RoomState = RoomState
   { rsRoomId      :: !Text
   , rsRoomName    :: !Text
+  , rsGameMode    :: !Text
+  , rsDraftStage  :: !Text
+  , rsTeams       :: !(Map Text Text)
+  , rsVotes       :: !(Map Text Text)
   , rsPassword    :: !(Maybe Text)
     -- ^ Nothing = public, Just pw = private
   , rsMaxPlayers  :: !Int
@@ -78,6 +82,8 @@ data RoomState = RoomState
     -- ^ Danh sách hộp bí ẩn trên bản đồ
   , rsMaze        :: !Maze
     -- ^ Mê cung hiện tại
+  , rsMapId       :: !Text
+    -- ^ Map đấu nhanh đã được cả phòng bỏ phiếu, giữ nguyên qua các round
   , rsInputs      :: !(Map Text PlayerInput)
     -- ^ Input mới nhất từ mỗi client
   , rsRoundNumber :: !Int

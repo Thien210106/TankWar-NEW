@@ -154,11 +154,23 @@ clientLoop ss db username = forever $ do
 handleClientMessage :: ServerState -> MongoPool -> Text -> ClientMessage -> IO ()
 handleClientMessage ss db username = \case
 
-  CCreateRoom roomName maxP password ->
-    handleCreateRoom ss username roomName maxP password
+  CCreateRoom roomName maxP password gameMode ->
+    handleCreateRoom ss username roomName maxP password gameMode
 
   CJoinRoom roomId password ->
     handleJoinRoom ss username roomId password
+
+  COpenDraft ->
+    handleOpenDraft ss username
+
+  CTankReady ->
+    handleTankReady ss username
+
+  CChooseTeam team ->
+    handleChooseTeam ss username team
+
+  CMapVote mapId ->
+    handleMapVote ss username mapId
 
   CLeaveRoom ->
     handleLeaveRoom ss username

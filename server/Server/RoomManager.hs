@@ -6,9 +6,14 @@ module Server.RoomManager
   , handleJoinRoom
   , handleLeaveRoom
   , handleStartGame
+  , handleOpenDraft
+  , handleTankReady
+  , handleChooseTeam
+  , handleMapVote
   , handleListRooms
   , generateRoomId
   , generateMaze
+  , generateTrainingMaze
   , assignTankColor
   , shuffleList
   ) where
@@ -21,6 +26,7 @@ import Data.Time.Clock         (getCurrentTime)
 import Data.Time.Format        (formatTime, defaultTimeLocale)
 import System.Random           (randomRIO)
 import Control.Monad           (when, unless)
+import Data.Aeson              (FromJSON(..), Value, eitherDecodeFileStrict', object, withObject, (.:), (.=))
 
 import Common.Types
 import Common.Config
@@ -32,8 +38,8 @@ import Server.State
 --------------------------------------------------------------------------------
 
 -- | Xử lý yêu cầu tạo phòng mới.
-handleCreateRoom :: ServerState -> Text -> Text -> Int -> Maybe Text -> IO ()
-handleCreateRoom ss username roomName maxP password = do
+handleCreateRoom :: ServerState -> Text -> Text -> Int -> Maybe Text -> Text -> IO ()
+handleCreateRoom ss username roomName maxP password requestedMode = do
   -- Kiểm tra client đã trong phòng chưa
   currentRoom <- atomically $ getClientRoom ss username
   case currentRoom of
@@ -43,7 +49,11 @@ handleCreateRoom ss username roomName maxP password = do
       rid <- generateUniqueRoomId ss
       now <- getCurrentTime
       let startTime = pack $ formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" now
-          clampedMax = max minPlayersToStart (min maxPlayersPerRoom maxP)
+          gameMode = if requestedMode `elem` ["deathmatch", "team", "zone"]
+                       then requestedMode else "deathmatch"
+          baseMax = max minPlayersToStart (min maxPlayersPerRoom maxP)
+          clampedMax = if gameMode == "deathmatch" || even baseMax
+                         then baseMax else min maxPlayersPerRoom (baseMax + 1)
 
       -- Tạo mê cung
       maze <- generateMaze
@@ -58,6 +68,10 @@ handleCreateRoom ss username roomName maxP password = do
       let room = RoomState
             { rsRoomId       = rid
             , rsRoomName     = roomName
+            , rsGameMode     = gameMode
+            , rsDraftStage   = "lobby"
+            , rsTeams        = Map.empty
+            , rsVotes        = Map.empty
             , rsPassword     = password
             , rsMaxPlayers   = clampedMax
             , rsHostPlayer   = username
@@ -68,6 +82,7 @@ handleCreateRoom ss username roomName maxP password = do
             , rsLasers       = []
             , rsMysteryBoxes = []
             , rsMaze         = maze
+            , rsMapId        = "forest"
             , rsInputs       = Map.singleton username emptyInput
             , rsRoundNumber  = 0
             , rsStartTime    = startTime
@@ -81,6 +96,7 @@ handleCreateRoom ss username roomName maxP password = do
       let info = roomToInfo room
       sendToClient ss username (SRoomCreated info)
       sendToClient ss username (SRoomRoster [(username, TankRed)])
+      broadcastDraft ss rid
       putStrLn $ "[Room] Phòng " ++ show rid ++ " được tạo bởi " ++ show username
 
 --------------------------------------------------------------------------------
@@ -146,6 +162,7 @@ doJoin ss username room = do
       sendToClient ss username (SRoomRoster roster)
       -- Thông báo cho người chơi khác
       broadcastToRoom ss rid (SPlayerJoined username color)
+      broadcastDraft ss rid
       putStrLn $ "[Room] " ++ show username ++ " vào phòng " ++ show rid
 
 --------------------------------------------------------------------------------
@@ -164,6 +181,8 @@ handleLeaveRoom ss username = do
           { rsPlayerIds = filter (/= username) (rsPlayerIds r)
           , rsTanks     = Map.delete username (rsTanks r)
           , rsInputs    = Map.delete username (rsInputs r)
+          , rsTeams     = Map.delete username (rsTeams r)
+          , rsVotes     = Map.delete username (rsVotes r)
           }
         clearClientRoom ss username
 
@@ -184,6 +203,7 @@ handleLeaveRoom ss username = do
                   r' { rsHostPlayer = newHost }
                 putStrLn $ "[Room] Chuyển host phòng " ++ show rid
                         ++ " sang " ++ show newHost
+              broadcastDraft ss rid
 
               broadcastToRoom ss rid (SPlayerLeft username)
 
@@ -193,6 +213,75 @@ handleLeaveRoom ss username = do
 --------------------------------------------------------------------------------
 -- Bắt đầu trận đấu
 --------------------------------------------------------------------------------
+
+handleOpenDraft :: ServerState -> Text -> IO ()
+handleOpenDraft ss username = withLobbyRoom ss username $ \rid room ->
+  if rsHostPlayer room /= username
+    then sendToClient ss username (SRoomError "Chỉ chủ phòng mới có thể mở phần chuẩn bị trận.")
+    else do
+      atomically $ modifyRoom ss rid $ \r -> r
+        { rsDraftStage = "tank", rsVotes = Map.empty, rsTeams = Map.empty }
+      broadcastDraft ss rid
+      broadcastToRoom ss rid SDraftOpened
+
+handleTankReady :: ServerState -> Text -> IO ()
+handleTankReady ss username = withLobbyRoom ss username $ \rid _ -> do
+  atomically $ modifyRoom ss rid $ \r -> r { rsDraftStage = "map" }
+  broadcastDraft ss rid
+
+handleChooseTeam :: ServerState -> Text -> Text -> IO ()
+handleChooseTeam ss username team = withLobbyRoom ss username $ \rid room ->
+  if rsGameMode room == "deathmatch"
+    then sendToClient ss username (SRoomError "Phòng Tử chiến không có chọn phe.")
+    else if team /= "blue" && team /= "red"
+      then sendToClient ss username (SRoomError "Phe không hợp lệ.")
+      else do
+        let currentTeam = Map.lookup username (rsTeams room)
+            teamCount = length (filter (== team) (Map.elems (rsTeams room)))
+            teamCap = max 1 (rsMaxPlayers room `div` 2)
+        if currentTeam /= Just team && teamCount >= teamCap
+          then sendToClient ss username (SRoomError "Phe này đã đủ người.")
+          else do
+            atomically $ modifyRoom ss rid $ \r -> r
+              { rsTeams = Map.insert username team (rsTeams r) }
+            broadcastDraft ss rid
+
+handleMapVote :: ServerState -> Text -> Text -> IO ()
+handleMapVote ss username mapId = withLobbyRoom ss username $ \rid room ->
+  if mapId `notElem` ["forest", "ruins", "depot", "random"]
+    then sendToClient ss username (SRoomError "Bản đồ không hợp lệ.")
+    else do
+      atomically $ modifyRoom ss rid $ \r -> r
+        { rsVotes = Map.insert username mapId (rsVotes r), rsDraftStage = "map" }
+      broadcastDraft ss rid
+
+withLobbyRoom :: ServerState -> Text -> (Text -> RoomState -> IO ()) -> IO ()
+withLobbyRoom ss username action = do
+  maybeRid <- atomically $ getClientRoom ss username
+  case maybeRid of
+    Nothing -> sendToClient ss username (SRoomError "Bạn không ở trong phòng!")
+    Just rid -> do
+      maybeRoom <- atomically $ getRoom ss rid
+      case maybeRoom of
+        Just room | rsPhase room == LobbyPhase -> action rid room
+        _ -> sendToClient ss username (SRoomError "Phòng không ở trạng thái chờ.")
+
+broadcastDraft :: ServerState -> Text -> IO ()
+broadcastDraft ss rid = do
+  maybeRoom <- atomically $ getRoom ss rid
+  case maybeRoom of
+    Nothing -> return ()
+    Just room -> broadcastToRoom ss rid (SRoomDraft $ roomDraftValue room)
+
+roomDraftValue :: RoomState -> Value
+roomDraftValue room = object
+  [ "stage" .= rsDraftStage room
+  , "mode" .= if rsGameMode room == "deathmatch" then ("freeforall" :: Text) else "teams"
+  , "votes" .= rsVotes room
+  , "teams" .= rsTeams room
+  , "maxPlayers" .= rsMaxPlayers room
+  , "players" .= rsPlayerIds room
+  ]
 
 -- | Chủ phòng nhấn Start.
 handleStartGame :: ServerState -> Text -> IO ()
@@ -217,10 +306,20 @@ handleStartGame ss username = do
                      (SRoomError $ "Cần ít nhất " <> pack (show minPlayersToStart)
                                 <> " người chơi!")
               else do
-                -- Sinh mê cung ngẫu nhiên cho trận đấu mới và xáo trộn vị trí spawn
-                newMaze <- generateMaze
+                let pids = rsPlayerIds room
+                    votedMap = case Map.toList (rsVotes room) of
+                      [] -> "forest"
+                      votes -> let counts = Map.fromListWith (+) [(m, 1 :: Int) | (_, m) <- votes]
+                                   best = maximum (Map.elems counts)
+                               in fst (head (filter ((== best) . snd) (Map.toList counts)))
+                selectedMap <- if votedMap == "random"
+                  then do
+                    idx <- randomRIO (0, 2 :: Int)
+                    return (["forest", "ruins", "depot"] !! idx)
+                  else return votedMap
+                -- Chạy cùng layout, kích thước và điểm spawn như các map đấu nhanh.
+                newMaze <- generateTrainingMaze selectedMap
                 let spawns = mazeSpawnPts newMaze
-                    pids   = rsPlayerIds room
                 shuffledSpawns <- shuffleList spawns
                 let tanks' = Map.fromList
                       [ (pid, (rsTanks room Map.! pid)
@@ -229,6 +328,8 @@ handleStartGame ss username = do
                                          else Vec2 100 100
                           , tankVel    = vec2Zero
                           , tankWeapon = defaultWeaponState
+                          , tankAmmo   = tankMaxAmmo (rsTanks room Map.! pid)
+                          , tankReloadTimer = 0
                           , tankAlive  = True
                           })
                       | (idx, pid) <- zip [0..] pids
@@ -236,10 +337,12 @@ handleStartGame ss username = do
                 -- Chuyển sang Countdown với mê cung và vị trí mới
                 atomically $ modifyRoom ss rid $ \r -> r
                   { rsMaze  = newMaze
+                  , rsMapId = selectedMap
                   , rsTanks = tanks'
                   , rsPhase = CountdownPhase countdownDuration
                   }
                 broadcastToRoom ss rid (SCountdown countdownDuration)
+                broadcastToRoom ss rid (SSelectedMap selectedMap)
                 putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
 
 --------------------------------------------------------------------------------
@@ -298,6 +401,7 @@ roomToInfo :: RoomState -> RoomInfo
 roomToInfo r = RoomInfo
   { riRoomId         = rsRoomId r
   , riRoomName       = rsRoomName r
+  , riGameMode       = rsGameMode r
   , riMaxPlayers     = rsMaxPlayers r
   , riCurrentPlayers = length (rsPlayerIds r)
   , riHasPassword    = case rsPassword r of
@@ -330,8 +434,8 @@ mkTank pid spawnPos color = Tank
   , tankMultiKillTimer  = 0
   , tankRespawnTimer    = 0
   , tankInvulnerabilityLeft = 0
-  , tankAmmo        = 6
-  , tankMaxAmmo     = 6
+  , tankAmmo        = magazineSize
+  , tankMaxAmmo     = magazineSize
   , tankReloadTimer = 0
   , tankSurvivalCarry = 0
   }
@@ -351,6 +455,103 @@ shuffleList xs = do
 
 -- | Tạo mê cung ngẫu nhiên với tường dày đặc phong phú (Labyrinth)
 -- và các điểm spawn ngẫu nhiên trên toàn bộ bản đồ.
+data LayoutRect = LayoutRect !Float !Float !Float !Float
+
+instance FromJSON LayoutRect where
+  parseJSON = withObject "LayoutRect" $ \o ->
+    LayoutRect <$> o .: "x" <*> o .: "y" <*> o .: "width" <*> o .: "height"
+
+data TrainingLayout = TrainingLayout
+  { tlWidth :: !Float
+  , tlHeight :: !Float
+  , tlCellSize :: !Float
+  , tlGridOffset :: !Float
+  , tlWallRects :: ![LayoutRect]
+  , tlBlockedCells :: ![[Float]]
+  , tlSpawnCentres :: ![[Float]]
+  }
+
+instance FromJSON TrainingLayout where
+  parseJSON = withObject "TrainingLayout" $ \o -> TrainingLayout
+    <$> o .: "width"
+    <*> o .: "height"
+    <*> o .: "cell_size"
+    <*> o .: "grid_offset"
+    <*> o .: "wall_rectangles"
+    <*> o .: "blocked_cells"
+    <*> o .: "spawn_centres"
+
+-- | Load the same 4096x4096 collision layout used by quick match. This keeps
+-- the online snapshot, the rendered terrain, walls, and spawn points aligned.
+generateTrainingMaze :: Text -> IO Maze
+generateTrainingMaze mapId = do
+  let path = "web/assets/maps/" ++ unpack mapId ++ "_layout.json"
+  result <- eitherDecodeFileStrict' path
+  case result of
+    Left err -> do
+      putStrLn $ "[Map] Không đọc được " ++ path ++ ": " ++ err ++ "; dùng mê cung dự phòng."
+      generateMaze
+    Right layout -> do
+      let w = tlWidth layout
+          h = tlHeight layout
+          rects = tlWallRects layout ++
+            [ LayoutRect (tlGridOffset layout + col * tlCellSize layout)
+                         (tlGridOffset layout + row * tlCellSize layout)
+                         (tlCellSize layout) (tlCellSize layout)
+            | cell <- tlBlockedCells layout
+            , let col = atOrZero 0 cell
+            , let row = atOrZero 1 cell
+            ]
+          borderWalls =
+            [ Wall (Vec2 0 0) (Vec2 w 0)
+            , Wall (Vec2 w 0) (Vec2 w h)
+            , Wall (Vec2 w h) (Vec2 0 h)
+            , Wall (Vec2 0 h) (Vec2 0 0)
+            ]
+          walls = borderWalls ++ concatMap rectangleWalls rects
+          explicitSpawns = map pairToVec (tlSpawnCentres layout)
+          cellCentres =
+            [ Vec2 (tlGridOffset layout + (fromIntegral col + 0.5) * tlCellSize layout)
+                   (tlGridOffset layout + (fromIntegral row + 0.5) * tlCellSize layout)
+            | col <- [0 .. floor (w / tlCellSize layout) - 1]
+            , row <- [0 .. floor (h / tlCellSize layout) - 1]
+            ]
+          openSpawns = filter (spawnIsClear walls) (explicitSpawns ++ cellCentres)
+          spawns = uniqueSpawns openSpawns
+      shuffledSpawns <- shuffleList spawns
+      return Maze
+        { mazeWalls = walls
+        , mazeWidth = w
+        , mazeHeight = h
+        , mazeSpawnPts = shuffledSpawns
+        , mazeBoxSpawnPts = take 12 shuffledSpawns
+        }
+  where
+    atOrZero i xs = if i < length xs then xs !! i else 0
+    pairToVec xs = Vec2 (atOrZero 0 xs) (atOrZero 1 xs)
+    rectangleWalls (LayoutRect x y rw rh) =
+      [ Wall (Vec2 x y) (Vec2 (x + rw) y)
+      , Wall (Vec2 (x + rw) y) (Vec2 (x + rw) (y + rh))
+      , Wall (Vec2 (x + rw) (y + rh)) (Vec2 x (y + rh))
+      , Wall (Vec2 x (y + rh)) (Vec2 x y)
+      ]
+    spawnIsClear walls point = all (farEnough point) (drop 4 walls)
+    farEnough (Vec2 px py) (Wall (Vec2 x1 y1) (Vec2 x2 y2)) =
+      let dx = x2 - x1
+          dy = y2 - y1
+          len2 = dx * dx + dy * dy
+          t = if len2 < 0.0001 then 0 else max 0 (min 1 (((px - x1) * dx + (py - y1) * dy) / len2))
+          qx = x1 + t * dx
+          qy = y1 + t * dy
+      in sqrt ((px - qx) * (px - qx) + (py - qy) * (py - qy)) > 190
+    uniqueSpawns = foldl addIfDistant []
+    addIfDistant accepted point
+      | any (near point) accepted = accepted
+      | otherwise = accepted ++ [point]
+    near (Vec2 x y) (Vec2 u v) = sqrt ((x - u) * (x - u) + (y - v) * (y - v)) < 300
+
+-- | Legacy procedural layout used only if the selected quick-match map asset
+-- cannot be read (for example when the server starts outside the project root).
 generateMaze :: IO Maze
 generateMaze = do
   let w  = defaultMazeWidth

@@ -1,6 +1,6 @@
 -- | Server.GameEngine
 -- Vòng lặp game chính (Authoritative Game Loop) chạy 60 Hz trên Server.
--- Xử lý: di chuyển xe tăng, vật lý đạn nảy, cooldown (thường 0.5s, box 1.0s), mystery box 15s,
+-- Xử lý: di chuyển xe tăng, đạn bay thẳng, cooldown (thường 0.5s, box 1.0s), mystery box 15s,
 -- Gatling burst 3 viên, va chạm, xác định thắng thua.
 module Server.GameEngine
   ( startRoomGameLoop
@@ -23,7 +23,7 @@ import Common.Types
 import Common.Config
 import Common.Protocol
 import Server.State
-import Server.RoomManager         (generateMaze, shuffleList)
+import Server.RoomManager         (generateTrainingMaze, shuffleList)
 import Server.Database.Connection (MongoPool)
 import Server.Database.PlayerRepo (addKill, addDeath, addWin, updatePlayerStats)
 import Server.Database.MatchRepo  (saveMatchResult)
@@ -132,7 +132,7 @@ tickInGame ss db roomId room = do
   -- Bước 4: Di chuyển đạn + nảy tường
   let allBullets = bullets ++ newBullets
       bullets1   = map (moveBullet dt maze) allBullets
-      -- Loại đạn hết lifetime hoặc vượt quá bounces
+      -- Đạn bay thẳng; loại khi hết lifetime.
       bullets2   = filter bulletAlive bullets1
 
   -- Bước 5: Va chạm đạn - xe tăng
@@ -211,8 +211,10 @@ moveTank deltaT input maze tank
     let -- Tính vận tốc từ input WASD
         moveX = (if piMoveRight input then 1 else 0)
               - (if piMoveLeft  input then 1 else 0)
-        moveY = (if piMoveUp    input then 1 else 0)
-              - (if piMoveDown  input then 1 else 0)
+        -- The quick-match map uses top-left screen coordinates (positive Y is
+        -- down), so W must subtract Y and S must add it.
+        moveY = (if piMoveDown input then 1 else 0)
+              - (if piMoveUp   input then 1 else 0)
         moveDir = vec2Normalize (Vec2 moveX moveY)
         vel     = vec2Scale tankSpeed moveDir
 
@@ -272,87 +274,40 @@ clampToMaze maze oldPos newPos =
                            else oldPos
 
 --------------------------------------------------------------------------------
--- Di chuyển Đạn + Phản xạ tường (Tối đa 5 lần)
+-- Di chuyển Đạn theo đường thẳng; đạn dừng khi va chạm hoặc hết thời gian sống.
 --------------------------------------------------------------------------------
 
 moveBullet :: Float -> Maze -> Bullet -> Bullet
 moveBullet deltaT maze bul =
-  case bulType bul of
-    WallPiercingBullet ->
-      -- Đạn xuyên tường: chỉ cập nhật vị trí, không nảy
-      bul { bulPos      = vec2Add (bulPos bul) (vec2Scale deltaT (bulVel bul))
-          , bulLifetime = bulLifetime bul - deltaT
-          }
-    _ ->
-      -- Đạn thường: nảy tường biên & tường nội bộ
-      let newPos = vec2Add (bulPos bul) (vec2Scale deltaT (bulVel bul))
-          (finalPos, finalVel, bounceCount) =
-            reflectBullet maze (bulPos bul) newPos (bulVel bul) (bulBounces bul)
-      in bul
-        { bulPos      = finalPos
-        , bulVel      = finalVel
-        , bulBounces  = bounceCount
-        , bulLifetime = bulLifetime bul - deltaT
-        }
+  let oldPos = bulPos bul
+      newPos = vec2Add oldPos (vec2Scale deltaT (bulVel bul))
+      hitWall = bulType bul /= WallPiercingBullet
+             && any (crossesWall oldPos newPos) (mazeWalls maze)
+  in bul
+    { bulPos      = newPos
+    , bulLifetime = if hitWall then 0 else bulLifetime bul - deltaT
+    , bulBounces  = 0
+    }
 
--- | Kiểm tra và phản xạ đạn qua tường biên và các vách ngăn mê cung
-reflectBullet :: Maze -> Vec2 -> Vec2 -> Vec2 -> Int -> (Vec2, Vec2, Int)
-reflectBullet maze (Vec2 ox oy) (Vec2 nx ny) (Vec2 vvx vvy) bounces =
-  let w = mazeWidth maze
-      h = mazeHeight maze
-      r = bulletRadius
-      innerWalls = drop 4 (mazeWalls maze)
+-- | Detect a swept bullet crossing an axis-aligned maze wall. A hit ends the
+-- bullet instead of reflecting it, so fast bullets cannot tunnel through walls.
+crossesWall :: Vec2 -> Vec2 -> Wall -> Bool
+crossesWall (Vec2 ox oy) (Vec2 nx ny) (Wall (Vec2 x1 y1) (Vec2 x2 y2))
+  | abs (y1 - y2) < 0.1 =
+      let loX = min x1 x2 - bulletRadius
+          hiX = max x1 x2 + bulletRadius
+          crossed = (oy <= y1 && ny >= y1) || (oy >= y1 && ny <= y1)
+      in crossed && max ox nx >= loX && min ox nx <= hiX
+  | abs (x1 - x2) < 0.1 =
+      let loY = min y1 y2 - bulletRadius
+          hiY = max y1 y2 + bulletRadius
+          crossed = (ox <= x1 && nx >= x1) || (ox >= x1 && nx <= x1)
+      in crossed && max oy ny >= loY && min oy ny <= hiY
+  | otherwise = False
 
-      -- 1) Phản xạ biên
-      (nx1, vvx1, b1) =
-        if nx < r
-          then (r + (r - nx), abs vvx, bounces + 1)
-        else if nx > w - r
-          then (w - r - (nx - (w - r)), -(abs vvx), bounces + 1)
-        else (nx, vvx, bounces)
-
-      (ny1, vvy1, b2) =
-        if ny < r
-          then (r + (r - ny), abs vvy, b1 + 1)
-        else if ny > h - r
-          then (h - r - (ny - (h - r)), -(abs vvy), b1 + 1)
-        else (ny, vvy, b1)
-
-      -- 2) Phản xạ qua tường nội bộ
-      checkWall (pos@(Vec2 cx cy), vel@(Vec2 cvx cvy), curB) (Wall (Vec2 x1 y1) (Vec2 x2 y2))
-        -- Tường ngang
-        | abs (y1 - y2) < 0.1 =
-            let wy   = y1
-                minX = min x1 x2 - r
-                maxX = max x1 x2 + r
-                crossed = (oy <= wy && cy >= wy) || (oy >= wy && cy <= wy)
-            in if crossed && cx >= minX && cx <= maxX
-                 then let newVy = if oy < wy then -abs cvy else abs cvy
-                          newCy = wy + (if oy < wy then -r else r)
-                      in (Vec2 cx newCy, Vec2 cvx newVy, curB + 1)
-                 else (pos, vel, curB)
-        -- Tường dọc
-        | abs (x1 - x2) < 0.1 =
-            let wx   = x1
-                minY = min y1 y2 - r
-                maxY = max y1 y2 + r
-                crossed = (ox <= wx && cx >= wx) || (ox >= wx && cx <= wx)
-            in if crossed && cy >= minY && cy <= maxY
-                 then let newVx = if ox < wx then -abs cvx else abs cvx
-                          newCx = wx + (if ox < wx then -r else r)
-                      in (Vec2 newCx cy, Vec2 newVx cvy, curB + 1)
-                 else (pos, vel, curB)
-        | otherwise = (pos, vel, curB)
-
-      (finalPos, finalVel, finalBounces) =
-        foldl checkWall (Vec2 nx1 ny1, Vec2 vvx1 vvy1, b2) innerWalls
-
-  in (finalPos, finalVel, finalBounces)
-
--- | Kiểm tra đạn còn sống không (tối đa 5 lần nảy)
+-- | Kiểm tra đạn còn sống.
 bulletAlive :: Bullet -> Bool
-bulletAlive bul =
-  bulLifetime bul > 0 && bulBounces bul <= maxBulletBounces
+bulletAlive bul = bulLifetime bul > 0
 
 --------------------------------------------------------------------------------
 -- Xử lý bắn đạn (Fire Input → Spawn Bullets)
@@ -376,6 +331,9 @@ processFireInputs inputs tanks _maze = do
 -- | Xử lý input bắn cho một xe tăng.
 handleFire :: PlayerInput -> Tank -> IO (Tank, [Bullet])
 handleFire input tank
+  | piReload input = return (startMagazineReload tank, [])
+  | tankReloadTimer tank > 0 = return (tank, [])
+  | tankAmmo tank <= 0 = return (startMagazineReload tank, [])
   | not (piFire input) = return (tank, [])
   | otherwise = case wsCooldownState (tankWeapon tank) of
       Ready -> do
@@ -387,11 +345,22 @@ handleFire input tank
                 { wsCooldownState = GatlingBurst (gatlingBurstCount - 1) gatlingBurstDelay }
               _ -> weapon
                 { wsCooldownState = Reloading (weaponCooldown btype) }
-        return (tank { tankWeapon = weapon' }, buls)
+            afterShot = tank { tankWeapon = weapon', tankAmmo = tankAmmo tank - 1 }
+        return (if tankAmmo afterShot <= 0 then startMagazineReload afterShot else afterShot, buls)
 
       -- Gatling burst: tự động bắn viên tiếp theo khi delay hết
       -- (xử lý trong updateWeaponCooldown)
       _ -> return (tank, [])
+
+-- | Begin a manual or automatic magazine reload. The same timer is exposed
+-- in snapshots for the browser HUD.
+startMagazineReload :: Tank -> Tank
+startMagazineReload tank
+  | tankReloadTimer tank > 0 || tankAmmo tank >= tankMaxAmmo tank = tank
+  | otherwise = tank
+      { tankReloadTimer = magazineReloadSeconds
+      , tankWeapon = (tankWeapon tank) { wsCooldownState = Reloading magazineReloadSeconds }
+      }
 
 -- | Spawn đạn theo loại vũ khí.
 spawnBullets :: Tank -> BulletType -> IO [Bullet]
@@ -412,21 +381,21 @@ spawnBullets tank btype = do
           dir3 = vec2Rotate shotgunSpreadAngle dir
           sp1  = vec2Add pos (vec2Scale spawnOffset dir1)
           sp3  = vec2Add pos (vec2Scale spawnOffset dir3)
-      return [ mkBullet sp1 dir1 bulletSpeed NormalBullet (tankId tank)
-             , mkBullet spawnPos dir2 bulletSpeed NormalBullet (tankId tank)
-             , mkBullet sp3 dir3 bulletSpeed NormalBullet (tankId tank)
+      return [ mkBullet sp1 dir1 1036 NormalBullet (tankId tank)
+             , mkBullet spawnPos dir2 1112 NormalBullet (tankId tank)
+             , mkBullet sp3 dir3 1036 NormalBullet (tankId tank)
              ]
 
     LaserBullet ->
       -- Laser xử lý đặc biệt: instant hit (trace ray), không spawn bullet bay
       -- TODO: Implement laser ray tracing
-      return [mkBullet spawnPos dir (bulletSpeed * 3) LaserBullet (tankId tank)]
+      return [mkBullet spawnPos dir 1737 LaserBullet (tankId tank)]
 
     WallPiercingBullet ->
       return [mkBullet spawnPos dir wallPiercingSpeed WallPiercingBullet (tankId tank)]
 
     GatlingBullet ->
-      return [mkBullet spawnPos dir bulletSpeed NormalBullet (tankId tank)]
+      return [mkBullet spawnPos dir 1250 NormalBullet (tankId tank)]
 
 mkBullet :: Vec2 -> Vec2 -> Float -> BulletType -> Text -> Bullet
 mkBullet pos dir speed btype ownerId = Bullet
@@ -474,7 +443,14 @@ updateWeaponCooldown deltaT _pid tank
                            else weapon' { wsBuffTimeLeft = t' }
                    else weapon'
 
-    in tank { tankWeapon = weapon'' }
+        reloadTimer' = max 0 (tankReloadTimer tank - deltaT)
+        reloaded = tankReloadTimer tank > 0 && reloadTimer' <= 0
+
+    in tank
+      { tankWeapon = weapon''
+      , tankReloadTimer = reloadTimer'
+      , tankAmmo = if reloaded then tankMaxAmmo tank else tankAmmo tank
+      }
 
 --------------------------------------------------------------------------------
 -- Va chạm Đạn - Xe tăng
@@ -581,8 +557,8 @@ startNewRound ss roomId = do
   case maybeRoom of
     Nothing -> return ()
     Just room -> do
-      -- Sinh mê cung ngẫu nhiên hoàn toàn mới cho round này!
-      newMaze <- generateMaze
+      -- Giữ nguyên map đã được chọn cho toàn bộ trận đấu.
+      newMaze <- generateTrainingMaze (rsMapId room)
       let spawns = mazeSpawnPts newMaze
           pids   = rsPlayerIds room
       -- Xáo trộn điểm spawn ngẫu nhiên trên toàn bản đồ
@@ -594,6 +570,8 @@ startNewRound ss roomId = do
                                else Vec2 100 100
                 , tankVel    = vec2Zero
                 , tankWeapon = defaultWeaponState
+                , tankAmmo   = tankMaxAmmo (rsTanks room Map.! pid)
+                , tankReloadTimer = 0
                 , tankAlive  = True
                 })
             | (idx, pid) <- zip [0..] pids
@@ -613,7 +591,7 @@ startNewRound ss roomId = do
         }
 
       broadcastToRoom ss roomId (SCountdown countdownDuration)
-      putStrLn $ "[Game] Round mới phòng " ++ show roomId ++ " với mê cung ngẫu nhiên!"
+      putStrLn $ "[Game] Round mới phòng " ++ show roomId ++ " trên map " ++ show (rsMapId room)
 
 --------------------------------------------------------------------------------
 -- Kết thúc trận đấu (Match Over)
@@ -661,12 +639,19 @@ broadcastSnapshot ss roomId = do
   case maybeRoom of
     Nothing   -> return ()
     Just room -> do
-      let snapshot = WorldSnapshot
+      -- Layout tĩnh đã được gửi cho cả phòng bằng SSelectedMap. Giữ kích thước
+      -- và biên trong snapshot, tránh gửi lại hàng trăm đoạn tường mỗi tick.
+      let mazeForSnapshot = (rsMaze room)
+            { mazeWalls = take 4 (mazeWalls (rsMaze room))
+            , mazeSpawnPts = []
+            , mazeBoxSpawnPts = []
+            }
+          snapshot = WorldSnapshot
             { wsTanks        = Map.elems (rsTanks room)
             , wsBullets      = rsBullets room
             , wsLasers       = rsLasers room
             , wsMysteryBoxes = rsMysteryBoxes room
-            , wsMaze         = rsMaze room
+            , wsMaze         = mazeForSnapshot
             , wsPhase        = rsPhase room
             , wsScores       = [(tankId t, tankScore t)
                                | t <- Map.elems (rsTanks room)]
