@@ -3,12 +3,16 @@
 module Main where
 
 import System.Exit (exitFailure, exitSuccess)
-import Control.Monad (unless)
+import System.IO (BufferMode(LineBuffering), hSetBuffering, stdout)
 import Data.Aeson (encode, decode)
-import qualified Data.ByteString.Lazy as BL
+import Data.Either (isLeft)
+import Data.Text (Text)
+import qualified Data.Map.Strict as Map
 
 import Common.Types
 import Common.Config
+import Common.CommandParser
+import Common.GameRules
 import Common.Protocol
 
 --------------------------------------------------------------------------------
@@ -38,6 +42,36 @@ assertNear label actual expected epsilon =
     else do
       putStrLn $ "  [FAIL] " ++ label ++ "\n    Expected: " ++ show expected ++ "\n    Actual:   " ++ show actual
       exitFailure
+
+assertLeft :: Show a => String -> Either a b -> IO ()
+assertLeft label result =
+  assertTrue label (isLeft result)
+
+testTank :: Text -> TankColor -> Tank
+testTank playerId color = Tank
+  { tankId = playerId
+  , tankPos = vec2Zero
+  , tankVel = vec2Zero
+  , tankBodyAngle = 0
+  , tankTurretAngle = 0
+  , tankColor = color
+  , tankWeapon = defaultWeaponState
+  , tankAlive = True
+  , tankScore = 0
+  , tankKills = 0
+  , tankDeaths = 0
+  , tankAssists = 0
+  , tankPoints = 0
+  , tankKillStreak = 0
+  , tankMultiKillCount = 0
+  , tankMultiKillTimer = 0
+  , tankRespawnTimer = 0
+  , tankInvulnerabilityLeft = 0
+  , tankAmmo = 0
+  , tankMaxAmmo = 0
+  , tankReloadTimer = 0
+  , tankSurvivalCarry = 0
+  }
 
 --------------------------------------------------------------------------------
 -- Test Suites
@@ -101,10 +135,81 @@ testProtocolSerialization = do
       decodedRoster = decode encodedRoster :: Maybe ServerMessage
   assertEq "SRoomRoster JSON roundtrip" decodedRoster (Just rosterMsg)
 
+  let roomInfo = RoomInfo
+        { riRoomId = "ABC123"
+        , riRoomName = "Test room"
+        , riGameMode = "deathmatch"
+        , riMaxPlayers = 4
+        , riCurrentPlayers = 2
+        , riHasPassword = False
+        , riPhase = LobbyPhase
+        }
+      encodedRoomInfo = encode roomInfo
+      decodedRoomInfo = decode encodedRoomInfo :: Maybe RoomInfo
+  assertEq "RoomInfo keeps the current host in JSON" decodedRoomInfo (Just roomInfo)
+
   let countdownMsg = SCountdown 2.5
       encodedCountdown = encode countdownMsg
       decodedCountdown = decode encodedCountdown :: Maybe ServerMessage
   assertEq "SCountdown JSON roundtrip" decodedCountdown (Just countdownMsg)
+
+testCommandParser :: IO ()
+testCommandParser = do
+  putStrLn "\n--- [4] Megaparsec Startup Configuration Tests ---"
+  assertEq "Full Mongo URI and port parse"
+    (parseServerOptions ["--port", "8081", "--mongo-uri", "mongodb://db.example:27018/Arena"])
+    (Right (ServerOptions (Just 8081) (Just (MongoEndpoint "db.example" 27018 "Arena"))))
+  assertEq "Short Mongo endpoint parse"
+    (parseServerOptions ["--mongo-uri", "localhost:27019/TankWarTest"])
+    (Right (ServerOptions Nothing (Just (MongoEndpoint "localhost" 27019 "TankWarTest"))))
+  assertEq "No startup options are valid"
+    (parseServerOptions [])
+    (Right (ServerOptions Nothing Nothing))
+  assertLeft "Reject invalid port with a parser error"
+    (parseServerOptions ["--port", "70000"])
+  assertLeft "Reject unknown startup option"
+    (parseServerOptions ["--unknown"])
+
+testWeaponRules :: IO ()
+testWeaponRules = do
+  putStrLn "\n--- [5] Pure Weapon State Machine Tests ---"
+  let granted = grantWeapon ShotgunBullet defaultWeaponState
+  assertEq "Mystery Box grants the requested weapon" (wsCurrentWeapon granted) ShotgunBullet
+  assertEq "Mystery Box grants a 15-second buff" (wsBuffTimeLeft granted) buffDuration
+  assertEq "Reload finishes at zero" (wsCooldownState $ wtWeapon $ stepWeapon 0.5 (WeaponState NormalBullet 0 (Reloading 0.5))) Ready
+
+  let expired = stepWeapon 15.0 (WeaponState LaserBullet 15.0 Ready)
+  assertEq "Expired buff restores normal bullets" (wsCurrentWeapon $ wtWeapon expired) NormalBullet
+  assertEq "Expired buff clears its timer" (wsBuffTimeLeft $ wtWeapon expired) 0
+
+  let burst = stepWeapon gatlingBurstDelay (WeaponState GatlingBullet 10 (GatlingBurst 2 gatlingBurstDelay))
+  assertTrue "Gatling requests its next bullet after the burst delay" (wtFireGatlingRound burst)
+  assertEq "Gatling decrements remaining burst bullets" (wsCooldownState $ wtWeapon burst) (GatlingBurst 1 gatlingBurstDelay)
+  assertEq "Gatling enters special cooldown after its final queued bullet"
+    (wsCooldownState $ wtWeapon $ stepWeapon gatlingBurstDelay (WeaponState GatlingBullet 10 (GatlingBurst 0 gatlingBurstDelay)))
+    (Reloading specialBulletCooldown)
+
+  let laserMaze = Maze [Wall (Vec2 10 0) (Vec2 10 20)] 20 20 [] []
+      laserSegments = traceLaser laserMaze (Vec2 5 5) (Vec2 1 0)
+  assertEq "Laser traces an initial segment and a reflected segment" (length laserSegments) 2
+  case laserSegments of
+    [LaserSegment _ firstEnd, LaserSegment secondStart secondEnd] -> do
+      assertNear "Laser reaches the nearest wall before reflecting" (vx firstEnd) 10 1e-4
+      assertTrue "Reflected laser travels in the opposite direction" (vx secondEnd < vx secondStart)
+    _ -> do
+      putStrLn "  [FAIL] Laser segments have unexpected structure"
+      exitFailure
+
+  let activeBullet = Bullet (Vec2 0 0) vec2Zero NormalBullet "active" 0 1
+      departedBullet = Bullet (Vec2 10 0) vec2Zero NormalBullet "departed" 0 1
+      tanks :: Map.Map Text Tank
+      tanks = Map.fromList
+        [("active", testTank "active" TankRed), ("departed", testTank "departed" TankBlue)]
+      (remainingTanks, remainingBullets) = retainActiveEntities ["active"]
+        tanks
+        [activeBullet, departedBullet]
+  assertEq "Tick commit does not restore a departed tank" (Map.keys remainingTanks) ["active"]
+  assertEq "Tick commit removes bullets owned by departed players" remainingBullets [activeBullet]
 
 --------------------------------------------------------------------------------
 -- Main Runner
@@ -112,13 +217,16 @@ testProtocolSerialization = do
 
 main :: IO ()
 main = do
+  hSetBuffering stdout LineBuffering
   putStrLn "=========================================="
   putStrLn "    TankWar Test Suite - Quality Check    "
   putStrLn "=========================================="
   testVectorMath
   testWeaponCooldowns
   testProtocolSerialization
+  testCommandParser
+  testWeaponRules
   putStrLn "\n=========================================="
-  putStrLn "   ALL TESTS PASSED SUCCESSFULLY! (16/16)  "
+  putStrLn "   ALL TESTS PASSED SUCCESSFULLY! (40/40)  "
   putStrLn "=========================================="
   exitSuccess

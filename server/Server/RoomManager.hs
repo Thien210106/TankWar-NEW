@@ -5,6 +5,7 @@ module Server.RoomManager
   ( handleCreateRoom
   , handleJoinRoom
   , handleLeaveRoom
+  , handleSelectMap
   , handleStartGame
   , handleOpenDraft
   , handleTankReady
@@ -283,67 +284,86 @@ roomDraftValue room = object
   , "players" .= rsPlayerIds room
   ]
 
--- | Chủ phòng nhấn Start.
-handleStartGame :: ServerState -> Text -> IO ()
+-- | Chủ phòng nhấn Start. A True result means this call made the one valid
+-- lobby-to-countdown transition, so Main may safely start exactly one loop.
+handleStartGame :: ServerState -> Text -> IO Bool
 handleStartGame ss username = do
   maybeRoomId <- atomically $ getClientRoom ss username
   case maybeRoomId of
-    Nothing  -> sendToClient ss username (SRoomError "Bạn không ở trong phòng!")
+    Nothing -> sendToClient ss username (SRoomError "Bạn không ở trong phòng!") >> pure False
     Just rid -> do
       maybeRoom <- atomically $ getRoom ss rid
       case maybeRoom of
-        Nothing -> return ()
-        Just room -> do
-          -- Chỉ host mới được bắt đầu
-          unless (rsHostPlayer room == username) $ do
-            sendToClient ss username (SRoomError "Chỉ chủ phòng mới được bắt đầu!")
-            return ()
+        Nothing -> pure False
+        Just room
+          | rsHostPlayer room /= username ->
+              sendToClient ss username (SRoomError "Chỉ chủ phòng mới được bắt đầu!") >> pure False
+          | length (rsPlayerIds room) < minPlayersToStart ->
+              sendToClient ss username
+                (SRoomError $ "Cần ít nhất " <> pack (show minPlayersToStart) <> " người chơi!")
+                >> pure False
+          | otherwise -> do
+              let pids = rsPlayerIds room
+                  votedMap = case Map.toList (rsVotes room) of
+                    [] -> "forest"
+                    votes -> let counts = Map.fromListWith (+) [(m, 1 :: Int) | (_, m) <- votes]
+                                 best = maximum (Map.elems counts)
+                             in fst (head (filter ((== best) . snd) (Map.toList counts)))
+              selectedMap <- if votedMap == "random"
+                then do
+                  idx <- randomRIO (0, 2 :: Int)
+                  pure (["forest", "ruins", "depot"] !! idx)
+                else pure votedMap
+              newMaze <- generateTrainingMaze selectedMap
+              shuffledSpawns <- shuffleList (mazeSpawnPts newMaze)
+              let tanks' = Map.fromList
+                    [ (pid, (rsTanks room Map.! pid)
+                        { tankPos = if idx < length shuffledSpawns
+                                    then shuffledSpawns !! idx else Vec2 100 100
+                        , tankVel = vec2Zero
+                        , tankWeapon = defaultWeaponState
+                        , tankAmmo = tankMaxAmmo (rsTanks room Map.! pid)
+                        , tankReloadTimer = 0
+                        , tankAlive = True
+                        })
+                    | (idx, pid) <- zip [0..] pids
+                    ]
+              atomically $ modifyRoom ss rid $ \r -> r
+                { rsMaze = newMaze
+                , rsMapId = selectedMap
+                , rsTanks = tanks'
+                , rsPhase = CountdownPhase countdownDuration
+                }
+              broadcastToRoom ss rid (SCountdown countdownDuration)
+              broadcastToRoom ss rid (SSelectedMap selectedMap)
+              putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
+              pure True
 
-          when (rsHostPlayer room == username) $ do
-            -- Cần ít nhất 2 người
-            if length (rsPlayerIds room) < minPlayersToStart
-              then sendToClient ss username
-                     (SRoomError $ "Cần ít nhất " <> pack (show minPlayersToStart)
-                                <> " người chơi!")
-              else do
-                let pids = rsPlayerIds room
-                    votedMap = case Map.toList (rsVotes room) of
-                      [] -> "forest"
-                      votes -> let counts = Map.fromListWith (+) [(m, 1 :: Int) | (_, m) <- votes]
-                                   best = maximum (Map.elems counts)
-                               in fst (head (filter ((== best) . snd) (Map.toList counts)))
-                selectedMap <- if votedMap == "random"
-                  then do
-                    idx <- randomRIO (0, 2 :: Int)
-                    return (["forest", "ruins", "depot"] !! idx)
-                  else return votedMap
-                -- Chạy cùng layout, kích thước và điểm spawn như các map đấu nhanh.
-                newMaze <- generateTrainingMaze selectedMap
-                let spawns = mazeSpawnPts newMaze
-                shuffledSpawns <- shuffleList spawns
-                let tanks' = Map.fromList
-                      [ (pid, (rsTanks room Map.! pid)
-                          { tankPos    = if idx < length shuffledSpawns
-                                         then shuffledSpawns !! idx
-                                         else Vec2 100 100
-                          , tankVel    = vec2Zero
-                          , tankWeapon = defaultWeaponState
-                          , tankAmmo   = tankMaxAmmo (rsTanks room Map.! pid)
-                          , tankReloadTimer = 0
-                          , tankAlive  = True
-                          })
-                      | (idx, pid) <- zip [0..] pids
-                      ]
-                -- Chuyển sang Countdown với mê cung và vị trí mới
-                atomically $ modifyRoom ss rid $ \r -> r
-                  { rsMaze  = newMaze
-                  , rsMapId = selectedMap
-                  , rsTanks = tanks'
-                  , rsPhase = CountdownPhase countdownDuration
-                  }
-                broadcastToRoom ss rid (SCountdown countdownDuration)
-                broadcastToRoom ss rid (SSelectedMap selectedMap)
-                putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
+-- | Only the room host can choose the map before a match. The current room
+-- flow already uses votes, so the host's explicit choice is stored as its
+-- vote and broadcast to every client immediately.
+handleSelectMap :: ServerState -> Text -> Text -> IO ()
+handleSelectMap ss username requestedMap = do
+  selected <- atomically $ do
+    maybeRoomId <- getClientRoom ss username
+    case maybeRoomId of
+      Nothing -> pure Nothing
+      Just roomId -> do
+        maybeRoom <- getRoom ss roomId
+        case maybeRoom of
+          Just room
+            | rsHostPlayer room == username
+            , rsPhase room == LobbyPhase -> do
+                let mapId = if requestedMap `elem` ["forest", "ruins", "depot", "random"]
+                              then requestedMap else "forest"
+                modifyRoom ss roomId $ \r -> r
+                  { rsVotes = Map.insert username mapId (rsVotes r) }
+                pure (Just (roomId, mapId))
+          _ -> pure Nothing
+  case selected of
+    Just (roomId, mapId) -> broadcastToRoom ss roomId (SSelectedMap mapId)
+    Nothing -> sendToClient ss username
+      (SRoomError "Chỉ chủ phòng có thể chọn bản đồ khi phòng đang chờ.")
 
 --------------------------------------------------------------------------------
 -- Liệt kê phòng

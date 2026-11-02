@@ -13,6 +13,17 @@ import Common.Types (BulletType(..))
 tickRate :: Int
 tickRate = 60
 
+-- | Số snapshot gửi tới mỗi client mỗi giây. Vật lý vẫn chạy 'tickRate' Hz,
+-- nhưng không cần gửi lại toàn bộ mê cung 60 lần/giây. 30Hz giữ hình ảnh mượt
+-- trong khi giảm một nửa tải WebSocket, đặc biệt quan trọng qua Internet.
+snapshotRate :: Int
+snapshotRate = 30
+
+-- | Số tick vật lý giữa hai snapshot mạng. Luôn ít nhất một tick để cấu hình
+-- vẫn an toàn nếu snapshotRate được thay đổi.
+snapshotEveryTicks :: Int
+snapshotEveryTicks = max 1 (tickRate `div` snapshotRate)
+
 -- | Delta time mỗi tick (giây).
 dt :: Float
 dt = 1.0 / fromIntegral tickRate    -- ≈ 0.01667s

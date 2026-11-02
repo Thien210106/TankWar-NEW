@@ -3,29 +3,30 @@
 -- Thiết lập WebSocket server, kết nối MongoDB, và xử lý kết nối client.
 module Main where
 
-import Control.Concurrent       (forkIO)
 import Control.Concurrent.STM
-import Control.Exception        (SomeException, catch, finally, bracket)
-import Control.Monad            (forever, void, when)
+import Control.Exception        (SomeException, catch, finally)
+import Control.Monad            (void)
 import Data.Aeson               (decode, encode)
-import Data.Map.Strict          (Map)
 import qualified Data.Map.Strict as Map
-import Data.Text                (Text, pack, unpack)
+import Data.Text                (Text)
 import qualified Data.ByteString.Lazy as BL
 import System.Environment       (getArgs)
-import System.IO                (hSetBuffering, hSetEncoding, stdout, stderr, utf8, BufferMode(..))
+import System.Exit              (exitFailure)
+import System.IO                (hPutStrLn, hSetBuffering, hSetEncoding, stdout, stderr, utf8, BufferMode(..))
 
 import qualified Network.WebSockets as WS
 
 import Common.Types
 import Common.Config
+import Common.CommandParser
 import Common.Protocol
 import Server.State
 import Server.RoomManager
 import Server.GameEngine
 import Server.Database.Connection
-import Server.Database.PlayerRepo (findPlayer, createPlayer, getLeaderboard)
+import Server.Database.PlayerRepo (findPlayer, createPlayer)
 import Server.Database.MatchRepo  ()
+import Server.Persistence
 
 --------------------------------------------------------------------------------
 -- Entry Point
@@ -41,8 +42,13 @@ main = do
 
   -- Parse tham số dòng lệnh
   args <- getArgs
-  let port    = parsePort args
-      mongoCfg = parseMongoConfig args
+  options <- case parseServerOptions args of
+    Left message -> do
+      hPutStrLn stderr $ "Lỗi tham số khởi động:\n" ++ message
+      exitFailure
+    Right value -> pure value
+  let port = maybe defaultPort id (soPort options)
+      mongoCfg = maybe defaultMongoConfig toMongoConfig (soMongo options)
 
   -- Banner
   putStrLn "╔══════════════════════════════════════════════════════════════╗"
@@ -58,6 +64,9 @@ main = do
 
   -- Khởi tạo trạng thái server
   ss <- newServerState
+  store <- newMatchStore defaultMatchHistoryPath
+  savedMatches <- loadMatchHistory store
+  putStrLn $ "[FileStore] Đã nạp " ++ show (length savedMatches) ++ " trận từ " ++ defaultMatchHistoryPath
 
   -- Khởi chạy WebSocket server
   putStrLn $ "[Server] WebSocket server lắng nghe cổng " ++ show port
@@ -68,7 +77,7 @@ main = do
   putStrLn "[Server] Sẵn sàng nhận kết nối!"
   putStrLn ""
 
-  WS.runServer "0.0.0.0" port (serverApp ss db)
+  WS.runServer "0.0.0.0" port (serverApp ss db store)
     `finally` closeMongo db
 
 --------------------------------------------------------------------------------
@@ -76,8 +85,8 @@ main = do
 --------------------------------------------------------------------------------
 
 -- | Xử lý mỗi kết nối WebSocket mới.
-serverApp :: ServerState -> MongoPool -> WS.ServerApp
-serverApp ss db pending = do
+serverApp :: ServerState -> MongoPool -> MatchStore -> WS.ServerApp
+serverApp ss db store pending = do
   conn <- WS.acceptRequest pending
   -- Bật ping/pong thread để giữ kết nối sống
   WS.withPingThread conn wsPingInterval (return ()) $ do
@@ -85,7 +94,7 @@ serverApp ss db pending = do
     msg <- WS.receiveData conn :: IO BL.ByteString
     case decode msg :: Maybe ClientMessage of
       Just (CLogin username displayName) ->
-        handleLogin ss db conn username displayName
+        handleLogin ss db store conn username displayName
       _ -> do
         WS.sendTextData conn $ encode (SLoginError "Tin nhắn đầu tiên phải là CLogin!")
         return ()
@@ -94,20 +103,13 @@ serverApp ss db pending = do
 -- Xử lý đăng nhập
 --------------------------------------------------------------------------------
 
-handleLogin :: ServerState -> MongoPool -> WS.Connection -> Text -> Text -> IO ()
-handleLogin ss db conn username displayName = do
-  -- Kiểm tra username đã online chưa
-  existing <- atomically $ do
-    clients <- readTVar (ssClients ss)
-    return $ Map.member username clients
-
-  if existing
+handleLogin :: ServerState -> MongoPool -> MatchStore -> WS.Connection -> Text -> Text -> IO ()
+handleLogin ss db store conn username displayName = do
+  registered <- atomically $ registerClient ss username conn
+  if not registered
     then WS.sendTextData conn $ encode
            (SLoginError $ "Username '" <> username <> "' đã đang online!")
     else do
-      -- Đăng ký client
-      atomically $ addClient ss username conn
-
       -- Tạo hồ sơ trong MongoDB nếu chưa có
       maybePlayer <- findPlayer db username
       case maybePlayer of
@@ -125,7 +127,7 @@ handleLogin ss db conn username displayName = do
       putStrLn $ "[Auth] " ++ show username ++ " đã đăng nhập."
 
       -- Bắt đầu vòng lặp nhận message từ client
-      clientLoop ss db username
+      clientLoop ss db store username
         `catch` (\e -> putStrLn $ "[WS] " ++ show username
                     ++ " ngắt kết nối: " ++ show (e :: SomeException))
         `finally` handleDisconnect ss username
@@ -134,25 +136,26 @@ handleLogin ss db conn username displayName = do
 -- Vòng lặp nhận message từ Client
 --------------------------------------------------------------------------------
 
-clientLoop :: ServerState -> MongoPool -> Text -> IO ()
-clientLoop ss db username = forever $ do
+clientLoop :: ServerState -> MongoPool -> MatchStore -> Text -> IO ()
+clientLoop ss db store username = do
   maybeConn <- atomically $ do
     clients <- readTVar (ssClients ss)
     return $ Map.lookup username clients
   case maybeConn of
-    Nothing -> return ()  -- Đã bị xoá
+    Nothing -> pure ()  -- Đã bị xoá
     Just cc -> do
       raw <- WS.receiveData (ccConnection cc) :: IO BL.ByteString
       case decode raw :: Maybe ClientMessage of
-        Nothing  -> return ()  -- Bỏ qua tin nhắn sai format
-        Just msg -> handleClientMessage ss db username msg
+        Nothing  -> pure ()  -- Bỏ qua tin nhắn sai format
+        Just msg -> handleClientMessage ss db store username msg
+      clientLoop ss db store username
 
 --------------------------------------------------------------------------------
 -- Xử lý tin nhắn từ Client (Message Router)
 --------------------------------------------------------------------------------
 
-handleClientMessage :: ServerState -> MongoPool -> Text -> ClientMessage -> IO ()
-handleClientMessage ss db username = \case
+handleClientMessage :: ServerState -> MongoPool -> MatchStore -> Text -> ClientMessage -> IO ()
+handleClientMessage ss db store username = \case
 
   CCreateRoom roomName maxP password gameMode ->
     handleCreateRoom ss username roomName maxP password gameMode
@@ -175,19 +178,19 @@ handleClientMessage ss db username = \case
   CLeaveRoom ->
     handleLeaveRoom ss username
 
+  CSelectMap mapId ->
+    handleSelectMap ss username mapId
+
   CStartGame -> do
-    handleStartGame ss username
-    -- Sau khi chuyển sang Countdown, bắt đầu game loop
-    maybeRoomId <- atomically $ getClientRoom ss username
-    case maybeRoomId of
-      Nothing  -> return ()
-      Just rid -> do
-        maybeRoom <- atomically $ getRoom ss rid
-        case maybeRoom of
-          Nothing -> return ()
-          Just room -> case rsPhase room of
-            CountdownPhase _ -> startRoomGameLoop ss db rid
-            _                -> return ()
+    started <- handleStartGame ss username
+    -- Chỉ fork một loop khi transaction vừa chuyển Lobby -> Countdown thành công.
+    if not started
+      then pure ()
+      else do
+        maybeRoomId <- atomically $ getClientRoom ss username
+        case maybeRoomId of
+          Nothing  -> pure ()
+          Just roomId -> startRoomGameLoop ss db roomId
 
   CPlayerInput input -> do
     -- Cập nhật input vào state của phòng
@@ -201,9 +204,8 @@ handleClientMessage ss db username = \case
     handleListRooms ss username
 
   CRequestLeaderboard -> do
-    docs <- getLeaderboard db 10
-    -- TODO: Parse MongoDB Documents sang (Text, Int, Int) properly
-    sendToClient ss username (SLeaderboard [])
+    history <- loadMatchHistory store
+    sendToClient ss username (SLeaderboard (leaderboardFromHistory history))
 
   CPing ->
     sendToClient ss username SPong
@@ -229,36 +231,9 @@ handleDisconnect ss username = do
   atomically $ removeClient ss username
 
 --------------------------------------------------------------------------------
--- Parse tham số dòng lệnh
---------------------------------------------------------------------------------
-
-parsePort :: [String] -> Int
-parsePort []                   = defaultPort
-parsePort ("--port" : p : _)   = read p
-parsePort (_ : rest)           = parsePort rest
-
-parseMongoConfig :: [String] -> MongoConfig
-parseMongoConfig args = case findArg "--mongo-uri" args of
-  Nothing  -> defaultMongoConfig
-  Just uri -> parseMongoUri uri
-
-findArg :: String -> [String] -> Maybe String
-findArg _ [] = Nothing
-findArg key (k : v : rest)
-  | k == key  = Just v
-  | otherwise = findArg key (v : rest)
-findArg _ [_] = Nothing
-
--- | Parse MongoDB URI đơn giản: mongodb://host:port/dbname
-parseMongoUri :: String -> MongoConfig
-parseMongoUri uri =
-  let stripped = drop (length ("mongodb://" :: String)) uri
-      (hostPort, dbPart) = break (== '/') stripped
-      (host', portStr)   = break (== ':') hostPort
-      port' = if null portStr then defaultMongoPort else read (tail portStr)
-      db'   = if null dbPart then mongoDbName else tail dbPart
-  in MongoConfig
-    { mcHost     = if null host' then "127.0.0.1" else host'
-    , mcPort     = port'
-    , mcDatabase = pack db'
-    }
+toMongoConfig :: MongoEndpoint -> MongoConfig
+toMongoConfig endpoint = MongoConfig
+  { mcHost = meHost endpoint
+  , mcPort = mePort endpoint
+  , mcDatabase = meDatabase endpoint
+  }
