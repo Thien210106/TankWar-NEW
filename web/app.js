@@ -919,7 +919,7 @@
         socket.close();
         resetConnectButton();
         statusPill('idle', 'CHƯA KẾT NỐI SERVER');
-        setError('home-error', 'Không kết nối được server. Hãy kiểm tra server Haskell, MongoDB và cổng 8081.');
+        setError('home-error', 'Không kết nối được server. Hãy kiểm tra server game, địa chỉ WebSocket và cổng đã mở.');
       }
     }, 8000);
     socket.addEventListener('open', () => {
@@ -944,7 +944,7 @@
       wsReady = false; loggedIn = false; resetConnectButton();
       statusPill('idle', 'SẴN SÀNG KẾT NỐI');
       if (screenName === 'game' && mode === 'online') {
-        showOverlay('MẤT KẾT NỐI', 'Kết nối tới Haskell server đã đóng.', 'VỀ TRANG CHỦ', () => { closeSocket(false); showScreen('home'); });
+        showOverlay('MẤT KẾT NỐI', 'Kết nối tới server game đã đóng.', 'VỀ TRANG CHỦ', () => { closeSocket(false); showScreen('home'); });
       } else if (screenName !== 'home') {
         setError(screenName === 'lobby' ? 'lobby-error' : 'home-error', 'Kết nối server đã đóng. Hãy quay về trang chủ và kết nối lại.');
       }
@@ -4333,6 +4333,14 @@ function chooseOfflineMap(mapId) {
   $('player-name').value = localStorage.getItem('tankwar-name') || '';
   const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const pageHost = window.location.hostname || 'localhost';
+<<<<<<< HEAD
+  // server.js serves both the web client and WebSocket on the same port.
+  // Static development servers use a separate game server on port 8081.
+  const staticDevPorts = new Set(['4173', '5173', '8080']);
+  const defaultWsUrl = staticDevPorts.has(window.location.port)
+    ? `${pageProtocol}//${pageHost}:8081`
+    : `${pageProtocol}//${window.location.host}`;
+=======
   const isLocalHost = pageHost === 'localhost' || pageHost === '127.0.0.1' || pageHost === '[::1]';
   // Production bundles the site and socket behind one HTTPS origin. This
   // avoids a mixed-content error and makes the public game URL shareable.
@@ -4340,9 +4348,11 @@ function chooseOfflineMap(mapId) {
   const defaultWsUrl = isLocalHost
     ? `${pageProtocol}//${pageHost}:8081`
     : `${pageProtocol}//${pageHost}/ws`;
+>>>>>>> cf4d304f7cde2d6e2c6c421c575cf2f3ae4825c6
   const savedServer = localStorage.getItem('tankwar-server');
   // Static Web servers commonly run on 5173; do not default WebSocket traffic to that port.
   const invalidSavedDefaults = [
+    'ws://localhost:8081', 'ws://127.0.0.1:8081', 'wss://localhost:8081', 'wss://127.0.0.1:8081',
     'ws://localhost:5173', 'ws://127.0.0.1:5173', 'wss://localhost:5173', 'wss://127.0.0.1:5173',
     'ws://localhost:8080', 'ws://127.0.0.1:8080', 'wss://localhost:8080', 'wss://127.0.0.1:8080',
     'ws://localhost:3000', 'ws://127.0.0.1:3000', 'wss://localhost:3000', 'wss://127.0.0.1:3000'

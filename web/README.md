@@ -28,7 +28,21 @@ node web/preview-server.js 4173
 
 Mở [http://127.0.0.1:4173/](http://127.0.0.1:4173/). Nhạc menu bắt đầu ở lần click đầu tiên vì trình duyệt không cho phép tự phát âm thanh trước một thao tác của người chơi. Khi xác nhận xe, trình duyệt sẽ yêu cầu fullscreen; nếu bị từ chối, khung game vẫn tự lấp toàn bộ viewport.
 
-## 2. Kết nối online với Haskell server hiện có
+## 2. Chơi online giữa các mạng khác nhau
+
+Để bạn bè ở nhà/mạng khác cùng chơi, cần có **một máy chủ luôn chạy và truy cập được từ Internet**. Dự án có sẵn `server.js`, phục vụ web và WebSocket cùng cổng, phù hợp để chạy trên máy chủ Windows/Linux hoặc VPS:
+
+```powershell
+node server.js 3000
+```
+
+Trên máy chủ, mở `http://localhost:3000/`. Người chơi cùng mạng có thể vào bằng IP LAN của máy chủ; người chơi ngoài mạng cần tên miền/IP công khai. Nếu tự host ở nhà, cấu hình router chuyển tiếp **TCP cổng 3000** về IP LAN của máy chủ, cho phép Node.js/cổng 3000 qua firewall, rồi gửi cho bạn bè địa chỉ `http://IP-CONG-KHAI:3000/`. Client tự chọn WebSocket cùng địa chỉ/cổng khi được phục vụ bởi `server.js`.
+
+Nếu website đã chạy HTTPS, WebSocket cũng phải là `wss://`: hãy triển khai sau reverse proxy TLS và proxy WebSocket về `server.js`, rồi truy cập trang qua tên miền HTTPS. Không dùng `ws://` từ trang HTTPS vì trình duyệt sẽ chặn kết nối.
+
+Nếu nhà mạng dùng CGNAT hoặc không cấp IP công khai, chuyển tiếp cổng trên router sẽ không giúp truy cập từ Internet; chạy server trên VPS/hosting có cổng mạng công khai là phương án phù hợp. Không cần mở MongoDB ra Internet.
+
+## 3. Kết nối online với Haskell server hiện có
 
 Online mode cần chạy server và MongoDB. Ở thư mục gốc dự án:
 
@@ -54,7 +68,7 @@ Online mode cần chạy server và MongoDB. Ở thư mục gốc dự án:
    cabal run tankwar-server -- --port 8081 --mongo-uri "mongodb://localhost:27017/TankWar"
    ```
 
-3. Mở `http://localhost:5173/web/`, nhập tên người chơi. Để server mặc định là `ws://localhost:8081`, rồi nhấn **KẾT NỐI ONLINE**.
+3. Mở `http://localhost:5173/web/`, nhập tên người chơi. Client mặc định kết nối `ws://<máy-chủ>:8081`, rồi nhấn **KẾT NỐI ONLINE**.
 4. Một người tạo phòng; người còn lại kết nối vào cùng server và nhập Room ID 6 ký tự. Chủ phòng bắt đầu khi có ít nhất 2 người.
 
 Frontend gửi/nhận thông điệp theo dạng JSON tagged của `Aeson` trong `src/Common/Protocol.hs`; game state và vật lý online vẫn do Haskell server xử lý. Địa chỉ mặc định `ws://localhost:8081` chỉ dùng được khi server ở cùng máy. Nếu server ở máy khác, nhập `ws://IP-MAY-CHU:8081` và mở cổng phù hợp.
@@ -79,7 +93,7 @@ docker run --rm -p 10000:10000 tankwar
 
 Sau đó mở `http://localhost:10000`; WebSocket tự nối tới `ws://localhost:10000/ws`.
 
-## 3. Tính năng & Cải tiến mới
+## 4. Tính năng & Cải tiến mới
 
 - Offline Practice là chế độ huấn luyện cục bộ để test giao diện và thao tác; bot/va chạm ở chế độ này là mô phỏng JavaScript, không phải game state authoritative của server.
 - File `testgame.js` tập trung các thông số tạm cho bản test: zoom camera `0.2` (nhìn xa gấp 5), tank hiển thị `0.5` với hitbox test `60px`, 3 bot, hồi sinh 5 giây và mốc thắng 6 hạ gục để thử màn kết quả. Backend có thể bỏ file này cùng luồng test khi đã sẵn sàng; cơ chế random map online không bị frontend thay đổi.
@@ -92,7 +106,7 @@ Sau đó mở `http://localhost:10000`; WebSocket tự nối tới `ws://localho
 - **Offline Practice:** Chế độ huấn luyện cục bộ chạy ngay trên Canvas/JS với bot di chuyển và né vật cản, không cần cài đặt server hay database.
 - **Online Mode:** Kết nối WebSocket Authoritative tới Haskell Server (60 Tick/s), lưu trữ trận đấu trên MongoDB.
 
-## 4. Ghi chú phát triển
+## 5. Ghi chú phát triển
 
 - `index.html`: các màn hình menu, lobby, phòng chờ và trận đấu.
 - `style.css`: giao diện responsive.
