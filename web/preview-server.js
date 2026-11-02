@@ -1,13 +1,12 @@
 'use strict';
 
-// Static preview only. Multiplayer authority belongs to tankwar-server (Haskell).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
 
 const port = Number(process.env.PORT || process.argv[2] || 5173);
-// Default to all interfaces so other devices on the same private Wi-Fi can
-// load the client. Set HOST=127.0.0.1 when a localhost-only preview is wanted.
+const wsPort = Number(process.env.WS_PORT || 8081);
 const host = process.env.HOST || process.argv[3] || '0.0.0.0';
 const root = __dirname;
 const mimeTypes = {
@@ -47,11 +46,28 @@ const server = http.createServer((request, response) => {
   });
 });
 
+// Proxy WebSocket requests (e.g. /ws from Cloudflare tunnel or reverse proxy) to Haskell server
+server.on('upgrade', (req, socket, head) => {
+  const proxySocket = net.connect(wsPort, '127.0.0.1', () => {
+    proxySocket.write(`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`);
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      proxySocket.write(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`);
+    }
+    proxySocket.write('\r\n');
+    if (head && head.length > 0) proxySocket.write(head);
+    socket.pipe(proxySocket);
+    proxySocket.pipe(socket);
+  });
+  proxySocket.on('error', () => {
+    socket.destroy();
+  });
+  socket.on('error', () => {
+    proxySocket.destroy();
+  });
+});
+
 server.listen(port, host, () => {
   const localUrl = `http://127.0.0.1:${port}/`;
-  console.log(`TankWar web preview: ${localUrl}`);
-  if (host === '0.0.0.0' || host === '::') {
-    console.log(`LAN enabled: open http://<HOST-LAN-IP>:${port}/ on another device.`);
-  }
-  console.log('Online mode connects to the Haskell WebSocket server on port 8080 by default.');
+  console.log(`TankWar web server running at: ${localUrl}`);
+  console.log(`WebSocket /ws proxied to 127.0.0.1:${wsPort}`);
 });
