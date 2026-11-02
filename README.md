@@ -279,7 +279,17 @@ Nhập tên chiến binh và nhấn **CHƠI THỬ NGAY (OFFLINE)** để trải 
 
 ---
 
-### Hướng dẫn 2: Khởi chạy đầy đủ chế độ Online Multiplayer
+### Chơi online giữa các mạng khác nhau (khuyến nghị)
+
+Repo có server Node.js phục vụ cả trang web và WebSocket trên cùng cổng, không cần MongoDB:
+
+```powershell
+node server.js 3000
+```
+
+Mở `http://localhost:3000/` để kiểm tra trên máy chủ. Để bạn bè ở mạng khác vào, máy chủ phải có IP công khai/tên miền. Nếu chạy tại nhà, đặt IP LAN cố định cho máy chủ, cho phép Node.js/cổng TCP `3000` trong firewall Windows, rồi cấu hình router chuyển tiếp TCP `3000` về máy đó. Gửi bạn bè `http://IP-CÔNG-KHAI:3000/`; client tự kết nối WebSocket cùng địa chỉ. Nếu ISP dùng CGNAT, hãy chạy server trên VPS/hosting có IP công khai. Với tên miền HTTPS, cần reverse proxy TLS hỗ trợ WebSocket (`wss://`). Không mở cổng MongoDB ra Internet.
+
+### Khởi chạy Online Multiplayer bằng Haskell (cần MongoDB)
 
 #### Bước 1: Khởi động Cơ sở dữ liệu MongoDB
 
