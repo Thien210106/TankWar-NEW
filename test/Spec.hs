@@ -6,6 +6,7 @@ import System.Exit (exitFailure, exitSuccess)
 import System.IO (BufferMode(LineBuffering), hSetBuffering, stdout)
 import Data.Aeson (encode, decode)
 import Data.Either (isLeft)
+import Data.Text (Text)
 import qualified Data.Map.Strict as Map
 
 import Common.Types
@@ -45,6 +46,32 @@ assertNear label actual expected epsilon =
 assertLeft :: Show a => String -> Either a b -> IO ()
 assertLeft label result =
   assertTrue label (isLeft result)
+
+testTank :: Text -> TankColor -> Tank
+testTank playerId color = Tank
+  { tankId = playerId
+  , tankPos = vec2Zero
+  , tankVel = vec2Zero
+  , tankBodyAngle = 0
+  , tankTurretAngle = 0
+  , tankColor = color
+  , tankWeapon = defaultWeaponState
+  , tankAlive = True
+  , tankScore = 0
+  , tankKills = 0
+  , tankDeaths = 0
+  , tankAssists = 0
+  , tankPoints = 0
+  , tankKillStreak = 0
+  , tankMultiKillCount = 0
+  , tankMultiKillTimer = 0
+  , tankRespawnTimer = 0
+  , tankInvulnerabilityLeft = 0
+  , tankAmmo = 0
+  , tankMaxAmmo = 0
+  , tankReloadTimer = 0
+  , tankSurvivalCarry = 0
+  }
 
 --------------------------------------------------------------------------------
 -- Test Suites
@@ -108,7 +135,15 @@ testProtocolSerialization = do
       decodedRoster = decode encodedRoster :: Maybe ServerMessage
   assertEq "SRoomRoster JSON roundtrip" decodedRoster (Just rosterMsg)
 
-  let roomInfo = RoomInfo "ABC123" "Test room" 4 2 False "player1" LobbyPhase
+  let roomInfo = RoomInfo
+        { riRoomId = "ABC123"
+        , riRoomName = "Test room"
+        , riGameMode = "deathmatch"
+        , riMaxPlayers = 4
+        , riCurrentPlayers = 2
+        , riHasPassword = False
+        , riPhase = LobbyPhase
+        }
       encodedRoomInfo = encode roomInfo
       decodedRoomInfo = decode encodedRoomInfo :: Maybe RoomInfo
   assertEq "RoomInfo keeps the current host in JSON" decodedRoomInfo (Just roomInfo)
@@ -165,12 +200,13 @@ testWeaponRules = do
       putStrLn "  [FAIL] Laser segments have unexpected structure"
       exitFailure
 
-  let activeTank = mkTank "active" (Vec2 0 0) TankRed
-      departedTank = mkTank "departed" (Vec2 10 0) TankBlue
-      activeBullet = Bullet (Vec2 0 0) vec2Zero NormalBullet "active" 0 1
+  let activeBullet = Bullet (Vec2 0 0) vec2Zero NormalBullet "active" 0 1
       departedBullet = Bullet (Vec2 10 0) vec2Zero NormalBullet "departed" 0 1
+      tanks :: Map.Map Text Tank
+      tanks = Map.fromList
+        [("active", testTank "active" TankRed), ("departed", testTank "departed" TankBlue)]
       (remainingTanks, remainingBullets) = retainActiveEntities ["active"]
-        (Map.fromList [("active", activeTank), ("departed", departedTank)])
+        tanks
         [activeBullet, departedBullet]
   assertEq "Tick commit does not restore a departed tank" (Map.keys remainingTanks) ["active"]
   assertEq "Tick commit removes bullets owned by departed players" remainingBullets [activeBullet]
