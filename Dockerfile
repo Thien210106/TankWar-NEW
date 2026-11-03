@@ -26,6 +26,7 @@ RUN apt-get update \
       gettext-base \
       libgmp10 \
       libnuma1 \
+      netbase \
       nginx \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
