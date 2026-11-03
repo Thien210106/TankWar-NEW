@@ -1,7 +1,7 @@
 C:\Users\Admin\Downloads\TankWar-NEW\package.yaml:
-  hash: a9f70c1c291ead3e98ce7ba413fc810b038887fbdaec8ed771c2ad05985438fd
+  hash: 2237e6bdfd12248089ebec0af61cf6d1588c4a9136b031f6af762d4cdbabd49a
 C:\Users\Admin\Downloads\TankWar-NEW\server\Main.hs:
-  hash: 2a02fe2561477804bf122cb2ed7854d7d04848a950e3eafa11576b35c05ade45
+  hash: 7c183fb7b1dddcf5f91f5620d6ae00233966460f85a2613ad4f8fff89ea1cf22
 C:\Users\Admin\Downloads\TankWar-NEW\server\Server\Database\Connection.hs:
   hash: 02319715117b3241f8264af337bc1dc6877216b923c369c743f0ec1cd32b7b4c
 C:\Users\Admin\Downloads\TankWar-NEW\server\Server\Database\MatchRepo.hs:
@@ -10,9 +10,11 @@ C:\Users\Admin\Downloads\TankWar-NEW\server\Server\Database\PlayerRepo.hs:
   hash: 8f9f62fdffb9ca0f391a156c0c2b7030adf3487f799797d8cf52ed36a04cb32c
 C:\Users\Admin\Downloads\TankWar-NEW\server\Server\GameEngine.hs:
   hash: 85168186027f9440d28dfa49b11112ebb441eee401b6d1e4b517d7f1d9f9c65a
+C:\Users\Admin\Downloads\TankWar-NEW\server\Server\Persistence.hs:
+  hash: a6da946eacfee35783ba07bf6f6bf5d7652b159c6113bfdfb3fc1465ddcc38a2
 C:\Users\Admin\Downloads\TankWar-NEW\server\Server\RoomManager.hs:
-  hash: 4c8edd2210b0457731853722b749bf66952e499f4d6415177ec36802748e22d9
+  hash: 09506585f6fe9add18502b8fee52890cd6c60528c5d01cffdfd8cd616c5f77fd
 C:\Users\Admin\Downloads\TankWar-NEW\server\Server\State.hs:
-  hash: 1408ecfb4ef5bbeee32c17789396fcc13eb9153c5f5200edd1e469d51333bbd3
+  hash: 4571b14c4162426c265f80acec5699d131c4e0fd908d3793a3c5a2efbc6d2a56
 C:\Users\Admin\Downloads\TankWar-NEW\tankwar.cabal:
-  hash: 5e513a7667099ae17a071aa6f963f190a0c24aa2cf137237d0dac3e574032566
+  hash: 56cca25e5981f4feb37167eb70216e3d43f1ffee662ec62b5b19d715115bb009

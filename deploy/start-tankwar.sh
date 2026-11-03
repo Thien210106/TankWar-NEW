@@ -10,7 +10,11 @@ envsubst '${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 nginx -t
 
 # This port is private to the container. nginx is the only public listener.
-tankwar-server --port 8080 &
+if [ -n "${MONGO_URI:-}" ]; then
+  tankwar-server --port 8080 --mongo-uri "$MONGO_URI" &
+else
+  tankwar-server --port 8080 &
+fi
 game_pid=$!
 
 shutdown() {

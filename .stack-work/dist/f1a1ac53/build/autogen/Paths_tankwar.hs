@@ -42,12 +42,12 @@ getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: 
 
 
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
-bindir     = "D:\\Users\\gamat\\Downloads\\TankWar-NEW\\TankWar-NEW\\.stack-work\\install\\1eee3797\\bin"
-libdir     = "D:\\Users\\gamat\\Downloads\\TankWar-NEW\\TankWar-NEW\\.stack-work\\install\\1eee3797\\lib\\x86_64-windows-ghc-9.4.8\\tankwar-0.1.0.0-AWFRXIaIx1mLTjJmr4mwe0"
-dynlibdir  = "D:\\Users\\gamat\\Downloads\\TankWar-NEW\\TankWar-NEW\\.stack-work\\install\\1eee3797\\lib\\x86_64-windows-ghc-9.4.8"
-datadir    = "D:\\Users\\gamat\\Downloads\\TankWar-NEW\\TankWar-NEW\\.stack-work\\install\\1eee3797\\share\\x86_64-windows-ghc-9.4.8\\tankwar-0.1.0.0"
-libexecdir = "D:\\Users\\gamat\\Downloads\\TankWar-NEW\\TankWar-NEW\\.stack-work\\install\\1eee3797\\libexec\\x86_64-windows-ghc-9.4.8\\tankwar-0.1.0.0"
-sysconfdir = "D:\\Users\\gamat\\Downloads\\TankWar-NEW\\TankWar-NEW\\.stack-work\\install\\1eee3797\\etc"
+bindir     = "C:\\Users\\Admin\\Downloads\\TankWar-NEW\\.stack-work\\install\\121892b2\\bin"
+libdir     = "C:\\Users\\Admin\\Downloads\\TankWar-NEW\\.stack-work\\install\\121892b2\\lib\\x86_64-windows-ghc-9.4.8\\tankwar-0.1.0.0-AWFRXIaIx1mLTjJmr4mwe0"
+dynlibdir  = "C:\\Users\\Admin\\Downloads\\TankWar-NEW\\.stack-work\\install\\121892b2\\lib\\x86_64-windows-ghc-9.4.8"
+datadir    = "C:\\Users\\Admin\\Downloads\\TankWar-NEW\\.stack-work\\install\\121892b2\\share\\x86_64-windows-ghc-9.4.8\\tankwar-0.1.0.0"
+libexecdir = "C:\\Users\\Admin\\Downloads\\TankWar-NEW\\.stack-work\\install\\121892b2\\libexec\\x86_64-windows-ghc-9.4.8\\tankwar-0.1.0.0"
+sysconfdir = "C:\\Users\\Admin\\Downloads\\TankWar-NEW\\.stack-work\\install\\121892b2\\etc"
 
 getBinDir     = catchIO (getEnv "tankwar_bindir")     (\_ -> return bindir)
 getLibDir     = catchIO (getEnv "tankwar_libdir")     (\_ -> return libdir)

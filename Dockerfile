@@ -2,15 +2,21 @@
 # Render (and other PaaS providers) supplies PORT at runtime; nginx is the only
 # process exposed outside the container, while the Haskell server remains on
 # its private loopback port 8080.
-FROM fpco/stack-build:lts-21.25 AS builder
+FROM haskell:9.6.7 AS builder
 
 WORKDIR /build
-COPY stack.yaml package.yaml tankwar.cabal ./
-RUN stack --system-ghc build --only-dependencies
+ENV PATH="/opt/ghc/9.6.7/bin:${PATH}"
 
+COPY deploy/cabal.config /root/.config/cabal/config
+COPY deploy/curl-retry.sh /usr/local/bin/curl
+COPY tankwar.cabal ./
 COPY src ./src
 COPY server ./server
-RUN stack --system-ghc build --copy-bins --local-bin-path /out
+RUN chmod 755 /usr/local/bin/curl
+RUN cabal update --verbose=2
+RUN cabal build exe:tankwar-server \
+    && mkdir -p /out \
+    && cp "$(cabal list-bin exe:tankwar-server)" /out/tankwar-server
 
 FROM debian:bookworm-slim
 

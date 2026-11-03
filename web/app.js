@@ -4333,22 +4333,15 @@ function chooseOfflineMap(mapId) {
   $('player-name').value = localStorage.getItem('tankwar-name') || '';
   const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const pageHost = window.location.hostname || 'localhost';
-<<<<<<< HEAD
-  // server.js serves both the web client and WebSocket on the same port.
-  // Static development servers use a separate game server on port 8081.
+  // Local static development servers use a separate game server on port 8081.
   const staticDevPorts = new Set(['4173', '5173', '8080']);
-  const defaultWsUrl = staticDevPorts.has(window.location.port)
-    ? `${pageProtocol}//${pageHost}:8081`
-    : `${pageProtocol}//${window.location.host}`;
-=======
   const isLocalHost = pageHost === 'localhost' || pageHost === '127.0.0.1' || pageHost === '[::1]';
   // Production bundles the site and socket behind one HTTPS origin. This
   // avoids a mixed-content error and makes the public game URL shareable.
   // Local development still connects directly to the Haskell server.
-  const defaultWsUrl = isLocalHost
+  const defaultWsUrl = isLocalHost && staticDevPorts.has(window.location.port)
     ? `${pageProtocol}//${pageHost}:8081`
-    : `${pageProtocol}//${pageHost}/ws`;
->>>>>>> cf4d304f7cde2d6e2c6c421c575cf2f3ae4825c6
+    : `${pageProtocol}//${window.location.host}/ws`;
   const savedServer = localStorage.getItem('tankwar-server');
   // Static Web servers commonly run on 5173; do not default WebSocket traffic to that port.
   const invalidSavedDefaults = [

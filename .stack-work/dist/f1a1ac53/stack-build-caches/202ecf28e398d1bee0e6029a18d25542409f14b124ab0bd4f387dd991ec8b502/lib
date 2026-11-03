@@ -1,16 +1,20 @@
 C:\Users\Admin\AppData\Local\Programs\stack\x86_64-windows\ghc-9.4.8\lib\x86_64-windows-ghc-9.4.8\rts-1.0.2\include\ghcversion.h:
   hash: 4bc88722407a89d1efbfa9c116cd4017af6ea3ff746643032b96cef62782f5dd
 C:\Users\Admin\Downloads\TankWar-NEW\.stack-work\dist\f1a1ac53\build\autogen\Paths_tankwar.hs:
-  hash: 10369162da2211afb832932a7fb94ee1e60a7806f888fd6dcc752659c009bf2d
+  hash: 54a35b2727dff65f8dd3eae0523990903e653636cf829b6719383b8369d883fa
 C:\Users\Admin\Downloads\TankWar-NEW\.stack-work\dist\f1a1ac53\build\autogen\cabal_macros.h:
-  hash: 750aa24b1ab2734cdebeecefd45b7c0e3a88739c953cacf9c5833ef8f6e74387
+  hash: 2337b669bbadb77c2911c82943c8c69f72f33832a7ff3f32b486852e4cb321b3
 C:\Users\Admin\Downloads\TankWar-NEW\package.yaml:
-  hash: a9f70c1c291ead3e98ce7ba413fc810b038887fbdaec8ed771c2ad05985438fd
+  hash: 2237e6bdfd12248089ebec0af61cf6d1588c4a9136b031f6af762d4cdbabd49a
+C:\Users\Admin\Downloads\TankWar-NEW\src\Common\CommandParser.hs:
+  hash: 30e9e93e90c23a535bfdc1a0ebfcdc082a7fe2c66bfabeaea9c816c2b98e8410
 C:\Users\Admin\Downloads\TankWar-NEW\src\Common\Config.hs:
-  hash: 7abbcf628ea940956e6b078e081523d1bccb01727c98411349eba628930ca9e9
+  hash: 20d8899e6f65152fbe115de44d3f65727a966a73eabcb93586516c3f21cc1ab1
+C:\Users\Admin\Downloads\TankWar-NEW\src\Common\GameRules.hs:
+  hash: d19193d084bdc97069091d3202d603db3fd643e88e891fc944d1492474699fb2
 C:\Users\Admin\Downloads\TankWar-NEW\src\Common\Protocol.hs:
-  hash: 91fd4cca3a41ac986a7a224f4ee05294f5d8fa1328c39309f83330f15e7ebaad
+  hash: 60d8ccc51cdbdcad637938ff35290921ee025149901e9ae3c562fc00504ac957
 C:\Users\Admin\Downloads\TankWar-NEW\src\Common\Types.hs:
   hash: bfe4484f0edeb55d3498f55a6deda7a9bc1eb01ffc739de36c50a08462e2643b
 C:\Users\Admin\Downloads\TankWar-NEW\tankwar.cabal:
-  hash: 5e513a7667099ae17a071aa6f963f190a0c24aa2cf137237d0dac3e574032566
+  hash: 56cca25e5981f4feb37167eb70216e3d43f1ffee662ec62b5b19d715115bb009

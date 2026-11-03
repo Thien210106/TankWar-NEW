@@ -332,13 +332,38 @@ Khi server sẵn sàng, terminal sẽ thông báo lắng nghe tại cổng `8081
 
 ### Hướng dẫn 3: Khởi chạy 1 lệnh duy nhất với Docker Compose
 
-Nếu máy đã cài Docker Desktop, bạn có thể khởi chạy đồng thời MongoDB + Haskell Server + Nginx Web:
+Nếu máy đã cài Docker Desktop, từ thư mục gốc dự án chạy MongoDB, Haskell Server và web client cùng nhau:
 
 ```powershell
-docker compose up --build
+docker compose up --build -d
 ```
 
-Trang game sẽ sẵn sàng ngay tại: `http://localhost:5173/web/`.
+Compose build image ứng dụng, chờ MongoDB khỏe mạnh rồi khởi động game server. Trang game sẵn sàng tại `http://localhost:10000/`; WebSocket dùng cùng địa chỉ. Dữ liệu MongoDB được giữ trong volume `mongo-data`.
+
+#### Cho máy khác trong LAN hoặc Internet truy cập
+
+Compose công khai cổng TCP `10000` trên các card mạng của máy chủ. Client tự kết nối WebSocket qua cùng địa chỉ `/ws`, vì vậy người chơi chỉ cần mở một URL:
+
+1. Khởi động stack: `docker compose up --build -d`.
+2. Cho phép TCP `10000` qua Windows Defender Firewall trên máy chủ (PowerShell chạy bằng quyền Administrator):
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "TankWar Docker Server" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 10000
+   ```
+
+3. Máy trong cùng mạng Wi-Fi/LAN mở `http://IP-LAN-CUA-MAY-CHU:10000/`. Tìm IP LAN bằng `ipconfig` (thường là địa chỉ IPv4 của Wi-Fi/Ethernet, ví dụ `192.168.1.20`). Đặt DHCP reservation cho máy chủ trong router để IP này không thay đổi.
+4. Để bạn bè ngoài Internet truy cập, cấu hình router **port forwarding TCP 10000** tới IP LAN của máy chủ và gửi `http://IP-CÔNG-KHAI:10000/` cho họ. Không forward cổng MongoDB `27017`.
+
+Nếu router không có IP WAN công khai (CGNAT), port forwarding sẽ không truy cập được từ Internet. Khi đó cần xin nhà mạng IP công khai hoặc dùng VPS/tunnel có public endpoint. Giữ máy tính bật, Docker Desktop chạy, và để máy không ngủ trong lúc host.
+
+Truy cập Internet hiện dùng HTTP/WS; phù hợp để thử nghiệm nhưng không mã hóa lưu lượng. Nếu dùng domain/HTTPS, đặt reverse proxy có TLS phía trước và proxy cả HTTP lẫn WebSocket tới cổng `10000`.
+
+Lệnh vận hành thường dùng:
+
+```powershell
+docker compose logs -f tankwar  # xem log server
+docker compose down             # dừng server; volume dữ liệu MongoDB vẫn còn
+```
 
 ---
 
