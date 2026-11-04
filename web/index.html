@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111813">
   <title>TankWar</title>
-  <link rel="stylesheet" href="style.css?v=41">
+  <link rel="stylesheet" href="style.css?v=46">
 </head>
 
 <body>
@@ -25,7 +25,7 @@
     </header>
 
     <main>
-      <section id="home-screen" class="screen home-layout">
+      <section id="home-screen" class="screen home-layout" hidden>
         <div class="hero-copy">
           <div class="eyebrow"><span class="eyebrow-line"></span> 2D MULTIPLAYER TANK COMBAT</div>
           <h1>VÀO TRẬN.<br><span>ĐỪNG ĐỨNG YÊN.</span></h1>
@@ -40,9 +40,6 @@
         <div class="menu-card">
           <div class="card-kicker" aria-hidden="true">PLAYER TERMINAL / 01</div>
           <h2 aria-hidden="true">VÀO GAME</h2>
-          <!-- The value is retained for the existing WebSocket login; players edit it only in the garage. -->
-          <label for="player-name" class="visually-hidden">TÊN CHIẾN BINH</label>
-          <input id="player-name" class="visually-hidden" type="text" maxlength="20" autocomplete="nickname" value="">
           <div class="field-row">
             <div class="field-grow">
               <label for="server-url" class="visually-hidden">HASKELL SERVER · WEBSOCKET</label>
@@ -55,7 +52,8 @@
             aria-label="Bắt đầu phòng với bot"><img src="assets/menu/batdauphong.png" alt="Bắt đầu phòng"></button>
           <button class="asset-exit" id="main-exit" type="button"><img src="assets/menu/exit.png"
               alt="Thoát game"></button>
-          <p class="fine-print">CHỌN XE TĂNG VÀ ĐẶT TÊN Ở BƯỚC TIẾP THEO.</p>
+          <button id="change-name" class="change-name-button" type="button">TÊN: <strong id="current-player-name">—</strong><span>ĐỔI TÊN</span></button>
+          <p class="fine-print">BẠN CÓ THỂ ĐỔI TÊN TRƯỚC KHI TÌM PHÒNG.</p>
           <div id="home-error" class="inline-error" role="status" hidden></div>
         </div>
         <div class="hero-bottom"><span>TACTICAL ARENA / BUILD 0.2</span><span>HASKELL SERVER · HTML5 CANVAS
@@ -214,7 +212,7 @@
         <div id="map-error" class="inline-error" role="status" hidden></div>
       </section>
 
-      <section id="tank-select-screen" class="screen tank-select-screen" hidden>
+      <section id="tank-select-screen" class="screen tank-select-screen">
         <div class="tank-select-layout">
           <section class="tank-assembly-card" aria-label="Xem trước xe tăng đã lắp">
             <div class="tank-assembly-stage" aria-label="Xem trước xe tăng đã lắp">
@@ -252,10 +250,11 @@
                     src="assets/tanks/gun_06.png" alt="Nòng pháo 06"></button>
               </div>
             </div>
-            <button id="tank-confirm" class="asset-action" type="button"><img src="assets/menu/batdauphong.png"
-                alt="Bắt đầu phòng"></button>
+            <button id="tank-confirm" class="asset-action" type="button" aria-label="Bắt đầu trận"><img
+                src="assets/menu/batdauphong.png" alt="Bắt đầu phòng"></button>
             <button class="asset-exit garage-exit" id="tank-select-back" type="button"><img src="assets/menu/exit.png"
                 alt="Thoát"></button>
+            <div id="tank-select-error" class="inline-error tank-select-error" role="alert" hidden></div>
             <p id="tank-select-note" class="visually-hidden">Bản thử sẽ ghép cùng bot.</p>
           </section>
         </div>
@@ -328,13 +327,16 @@
             <h1 id="room-title">PHÒNG CHIẾN ĐẤU</h1>
             <p id="room-caption">Chờ thêm chiến binh.</p>
           </div>
-          <div class="room-code"><small>MÃ PHÒNG</small><strong id="room-code">------</strong><button
-              id="copy-room-code" class="copy-button" type="button" title="Sao chép mã phòng">⧉</button></div>
         </div>
         <div class="room-grid">
           <div class="panel room-players-panel room-asset-panel room-asset-panel-wide">
             <img class="room-panel-frame room-panel-frame-wide" src="assets/menu/khungchonmap2.png" alt=""
               aria-hidden="true">
+            <div class="room-invite">
+              <span>MÃ PHÒNG · GỬI CHO BẠN BÈ</span>
+              <strong id="room-code" aria-live="polite">------</strong>
+              <button id="copy-room-code" class="copy-button" type="button" title="Sao chép mã phòng">SAO CHÉP MÃ</button>
+            </div>
             <div class="panel-heading">
               <div><span class="panel-index">01</span>
                 <h2>ĐỘI HÌNH</h2>
@@ -546,7 +548,7 @@
     </main>
   </div>
   <script src="testgame.js?v=17"></script>
-  <script src="app.js?v=40"></script>
+  <script src="app.js?v=43"></script>
 </body>
 
 </html>

@@ -37,12 +37,12 @@ import Server.Database.MatchRepo  (saveMatchResult)
 startRoomGameLoop :: ServerState -> MongoPool -> Text -> IO ()
 startRoomGameLoop ss db roomId = void $ forkIO $ do
   putStrLn $ "[GameLoop] Bắt đầu game loop cho phòng " ++ show roomId
-  gameLoopForever ss db roomId
+  gameLoopForever ss db roomId 0
   putStrLn $ "[GameLoop] Kết thúc game loop phòng " ++ show roomId
 
 -- | Vòng lặp chính: tick → broadcast → delay → repeat.
-gameLoopForever :: ServerState -> MongoPool -> Text -> IO ()
-gameLoopForever ss db roomId = do
+gameLoopForever :: ServerState -> MongoPool -> Text -> Int -> IO ()
+gameLoopForever ss db roomId gameTick = do
   maybeRoom <- atomically $ getRoom ss roomId
   case maybeRoom of
     Nothing -> return ()  -- Phòng đã bị xoá
@@ -53,11 +53,13 @@ gameLoopForever ss db roomId = do
           -- Thực hiện một tick
           tickRoom ss db roomId
           -- Broadcast world snapshot
-          broadcastSnapshot ss roomId
+          -- Keep physics at 60 Hz while sending the larger world state at 30 Hz.
+          when (gameTick `mod` snapshotEveryTicks == 0) $
+            broadcastSnapshot ss roomId
           -- Delay đúng tick rate (60 Hz ≈ 16667 μs)
           threadDelay (1000000 `div` tickRate)
           -- Tiếp tục
-          gameLoopForever ss db roomId
+          gameLoopForever ss db roomId (gameTick + 1)
 
 --------------------------------------------------------------------------------
 -- Một Tick (≈ 16.67ms)

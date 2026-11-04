@@ -127,12 +127,15 @@ handleJoinRoom ss username roomId password = do
                 else do
                   -- Kiểm tra đang trong trận
                   case rsPhase room of
-                    LobbyPhase -> doJoin ss username room
+                    LobbyPhase -> do
+                      joined <- doJoin ss username room
+                      unless joined $
+                        sendToClient ss username (SRoomError "Phòng đã thay đổi hoặc đã đầy, hãy thử lại.")
                     _          -> sendToClient ss username
                                    (SRoomError "Trận đấu đã bắt đầu, không thể vào!")
 
 -- | Thực hiện join: thêm người chơi vào phòng.
-doJoin :: ServerState -> Text -> RoomState -> IO ()
+doJoin :: ServerState -> Text -> RoomState -> IO Bool
 doJoin ss username room = do
   let rid       = rsRoomId room
       playerIdx = length (rsPlayerIds room)
@@ -145,26 +148,35 @@ doJoin ss username room = do
   let spawnPt   = if null availSpawns then Vec2 100 100 else availSpawns !! pickIdx
       tank      = mkTank username spawnPt color
 
-  atomically $ do
-    modifyRoom ss rid $ \r -> r
-      { rsPlayerIds = rsPlayerIds r ++ [username]
-      , rsTanks     = Map.insert username tank (rsTanks r)
-      , rsInputs    = Map.insert username emptyInput (rsInputs r)
-      }
-    setClientRoom ss username rid
-
-  updatedRoom <- atomically $ getRoom ss rid
-  case updatedRoom of
-    Nothing -> return ()
-    Just r  -> do
-      let info = roomToInfo r
-      sendToClient ss username (SRoomJoined info)
-      let roster = [(pid, maybe TankBlue tankColor (Map.lookup pid (rsTanks r))) | pid <- rsPlayerIds r]
-      sendToClient ss username (SRoomRoster roster)
-      -- Thông báo cho người chơi khác
-      broadcastToRoom ss rid (SPlayerJoined username color)
-      broadcastDraft ss rid
-      putStrLn $ "[Room] " ++ show username ++ " vào phòng " ++ show rid
+  joined <- atomically $ do
+    latestRoom <- getRoom ss rid
+    currentRoom <- getClientRoom ss username
+    case latestRoom of
+      Just latest | currentRoom == Nothing
+                  , username `notElem` rsPlayerIds latest
+                  , rsPhase latest == LobbyPhase
+                  , length (rsPlayerIds latest) < rsMaxPlayers latest -> do
+        modifyRoom ss rid $ \r -> r
+          { rsPlayerIds = rsPlayerIds r ++ [username]
+          , rsTanks     = Map.insert username tank (rsTanks r)
+          , rsInputs    = Map.insert username emptyInput (rsInputs r)
+          }
+        setClientRoom ss username rid
+        pure True
+      _ -> pure False
+  if not joined then pure False else do
+    updatedRoom <- atomically $ getRoom ss rid
+    case updatedRoom of
+      Nothing -> pure True
+      Just r  -> do
+        let info = roomToInfo r
+        sendToClient ss username (SRoomJoined info)
+        let roster = [(pid, maybe TankBlue tankColor (Map.lookup pid (rsTanks r))) | pid <- rsPlayerIds r]
+        sendToClient ss username (SRoomRoster roster)
+        broadcastToRoom ss rid (SPlayerJoined username color)
+        broadcastDraft ss rid
+        putStrLn $ "[Room] " ++ show username ++ " vào phòng " ++ show rid
+        pure True
 
 --------------------------------------------------------------------------------
 -- Rời phòng
@@ -328,16 +340,27 @@ handleStartGame ss username = do
                         })
                     | (idx, pid) <- zip [0..] pids
                     ]
-              atomically $ modifyRoom ss rid $ \r -> r
-                { rsMaze = newMaze
-                , rsMapId = selectedMap
-                , rsTanks = tanks'
-                , rsPhase = CountdownPhase countdownDuration
-                }
-              broadcastToRoom ss rid (SCountdown countdownDuration)
-              broadcastToRoom ss rid (SSelectedMap selectedMap)
-              putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
-              pure True
+              started <- atomically $ do
+                latest <- getRoom ss rid
+                case latest of
+                  Just current | rsPhase current == LobbyPhase
+                               , rsHostPlayer current == username
+                               , rsPlayerIds current == pids -> do
+                    modifyRoom ss rid $ \r -> r
+                      { rsMaze = newMaze
+                      , rsMapId = selectedMap
+                      , rsTanks = tanks'
+                      , rsPhase = CountdownPhase countdownDuration
+                      }
+                    pure True
+                  _ -> pure False
+              if started
+                then do
+                  broadcastToRoom ss rid (SCountdown countdownDuration)
+                  broadcastToRoom ss rid (SSelectedMap selectedMap)
+                  putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
+                else sendToClient ss username (SRoomError "Phòng đã thay đổi; hãy thử bắt đầu lại.")
+              pure started
 
 -- | Only the room host can choose the map before a match. The current room
 -- flow already uses votes, so the host's explicit choice is stored as its

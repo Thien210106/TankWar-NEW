@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | Parser combinator cho cấu hình khởi động server.
---   Hỗ trợ cả URI MongoDB đầy đủ và dạng host:port/database ngắn gọn.
+--   Hỗ trợ mongodb://host[:port][/database] và dạng host:port/database.
+--   Credentials, query options, IPv6 và mongodb+srv cần cấu hình driver riêng
+--   nên được từ chối thay vì âm thầm diễn giải sai.
 module Common.CommandParser
   ( MongoEndpoint(..)
   , ServerOptions(..)
@@ -81,8 +83,12 @@ mongoEndpointParser = do
   host <- some (alphaNumChar <|> char '.' <|> char '-')
   port <- optional (char ':' *> L.decimal)
   database <- optional (char '/' *> some (alphaNumChar <|> char '_' <|> char '-'))
+  let portNumber = maybe 27017 id port
+  if portNumber < 1 || portNumber > 65535
+    then fail "cổng MongoDB phải nằm trong khoảng 1 đến 65535"
+    else pure ()
   pure MongoEndpoint
     { meHost = host
-    , mePort = maybe 27017 id port
+    , mePort = portNumber
     , meDatabase = pack (maybe "TankWar" id database)
     }

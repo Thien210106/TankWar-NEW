@@ -2303,6 +2303,19 @@ body:not(.in-game):has(.room-screen:not([hidden])) .topbar {
   .room-screen .room-invite .copy-button { min-width: 72px; padding: 0 6px; }
 }
 
+.tank-select-error { margin: 5px 0 0; padding: 7px 9px; font-size: 8px; line-height: 1.5; }
+.change-name-button {
+  align-self: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #43533c;
+  background: rgba(13,22,14,.88);
+  color: #9ead96;
+  font-size: 8px;
+  letter-spacing: .5px;
+}
+.change-name-button strong { color: var(--lime); margin: 0 6px; }
+.change-name-button span { color: #d8e5ce; }
 /* The loadout is intentionally smaller than the battlefield backdrop and
    always remains fully inside the viewport. */
 .tank-select-layout {

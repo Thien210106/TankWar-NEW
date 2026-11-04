@@ -175,7 +175,7 @@
     hudImages[`loading-${frame}`] = image;
   });
 
-  let screenName = 'home';
+  let screenName = 'tankSelect';
   let mode = 'none';
   let ws = null;
   let wsReady = false;
@@ -898,10 +898,16 @@
   function connectOnline() {
     unlockAudio();
     setError('home-error', '');
-    const rawName = $('player-name').value.trim() || localStorage.getItem('tankwar-name') || 'TankPilot';
+    const rawName = $('tank-name').value.trim();
+    if (!rawName) {
+      setError('tank-select-error', 'Nhập tên chiến binh trước khi kết nối.');
+      showScreen('tankSelect');
+      $('tank-name').focus();
+      return;
+    }
     const url = $('server-url').value.trim();
-    $('player-name').value = rawName;
-    if (!/^wss?:\/\//i.test(url)) { setError('home-error', 'Địa chỉ server phải bắt đầu bằng ws:// hoặc wss://'); $('server-url').focus(); return; }
+    $('tank-name').value = rawName;
+    if (!/^wss?:\/\//i.test(url)) { setError('tank-select-error', 'Địa chỉ server phải bắt đầu bằng ws:// hoặc wss://'); return; }
     closeSocket(false);
     username = rawName;
     displayName = rawName;
@@ -912,14 +918,14 @@
     $('online-button').setAttribute('aria-label', 'Đang mở danh sách phòng');
     let socket;
     try { socket = new WebSocket(url); }
-    catch (error) { resetConnectButton(); statusPill('idle', 'CHƯA KẾT NỐI SERVER'); setError('home-error', `Không tạo được kết nối WebSocket: ${error.message}`); return; }
+    catch (error) { resetConnectButton(); statusPill('idle', 'CHƯA KẾT NỐI SERVER'); setError('tank-select-error', `Không tạo được kết nối WebSocket: ${error.message}`); return; }
     ws = socket;
     const timeout = window.setTimeout(() => {
       if (socket.readyState !== WebSocket.OPEN && ws === socket) {
         socket.close();
         resetConnectButton();
         statusPill('idle', 'CHƯA KẾT NỐI SERVER');
-        setError('home-error', 'Không kết nối được server. Hãy kiểm tra server game, địa chỉ WebSocket và cổng đã mở.');
+        setError(screenName === 'tankSelect' ? 'tank-select-error' : 'home-error', 'Không kết nối được server. Hãy kiểm tra server game, địa chỉ WebSocket và cổng đã mở.');
       }
     }, 8000);
     socket.addEventListener('open', () => {
@@ -937,7 +943,7 @@
     });
     socket.addEventListener('error', () => {
       statusPill('idle', 'LỖI KẾT NỐI');
-      if (screenName === 'home') setError('home-error', 'Kết nối WebSocket thất bại. Kiểm tra địa chỉ và trạng thái server.');
+      setError(screenName === 'tankSelect' ? 'tank-select-error' : 'home-error', 'Kết nối WebSocket thất bại. Kiểm tra địa chỉ và trạng thái server.');
     });
     socket.addEventListener('close', () => {
       if (ws !== socket) return;
@@ -946,7 +952,8 @@
       if (screenName === 'game' && mode === 'online') {
         showOverlay('MẤT KẾT NỐI', 'Kết nối tới server game đã đóng.', 'VỀ TRANG CHỦ', () => { closeSocket(false); showScreen('home'); });
       } else if (screenName !== 'home') {
-        setError(screenName === 'lobby' ? 'lobby-error' : 'home-error', 'Kết nối server đã đóng. Hãy quay về trang chủ và kết nối lại.');
+        const errorTarget = screenName === 'lobby' ? 'lobby-error' : screenName === 'tankSelect' ? 'tank-select-error' : 'home-error';
+        setError(errorTarget, 'Kết nối server đã đóng. Hãy kiểm tra server rồi thử lại.');
       }
     });
   }
@@ -1003,6 +1010,7 @@
         mode = 'online';
         setError('home-error', '');
         setError('lobby-error', '');
+        setError('tank-select-error', '');
         resetConnectButton();
         statusPill('idle', 'SẴN SÀNG TÌM PHÒNG');
         showScreen('lobby');
@@ -1010,10 +1018,14 @@
         addFeed(`Đã đăng nhập: ${displayName}`);
         break;
       }
-      case 'SLoginError':
-        setError(screenName === 'lobby' ? 'lobby-error' : 'home-error', stringPayload(data) || 'Server từ chối đăng nhập.');
+      case 'SLoginError': {
+        setError('tank-select-error', stringPayload(data) || 'Server từ chối đăng nhập. Hãy thử một tên khác.');
+        closeSocket(false);
+        showScreen('tankSelect');
+        $('tank-name').focus();
         resetConnectButton();
         break;
+      }
       case 'SRoomList':
         roomList = Array.isArray(data) ? data : (Array.isArray(unwrapOne(data)) ? unwrapOne(data) : []);
         renderRoomList();
@@ -1336,11 +1348,13 @@
 
   function openTankSelect(returnTo) {
     tankSelectReturn = returnTo;
-    const savedName = $('player-name').value.trim() || username || displayName || localStorage.getItem('tankwar-name') || '';
+    const savedName = $('tank-name').value.trim() || username || displayName || localStorage.getItem('tankwar-name') || '';
     $('tank-name').value = savedName;
     const roomId = activeRoom && readField(activeRoom, 'riRoomId');
     $('tank-select-note').textContent = returnTo === 'offline'
       ? 'Sau khi xác nhận xe, chọn độ khó bot, số bot và map thử. Map online vẫn do server ngẫu nhiên.'
+      : returnTo === 'home'
+        ? 'Đặt tên và chọn xe trước khi chọn chế độ chơi.'
       : returnTo === 'onlineMap'
         ? 'Chọn xe của bạn, rồi bỏ phiếu chọn chiến trường cùng mọi người trong phòng.'
       : roomId
@@ -1357,21 +1371,24 @@
 
   function confirmTankSelection() {
     unlockAudio();
-    const name = $('tank-name').value.trim() || $('player-name').value.trim() || 'TankPilot';
+    const name = $('tank-name').value.trim();
+    if (!name) {
+      setError('tank-select-error', 'Nhập tên chiến binh trước khi tiếp tục.');
+      $('tank-name').focus();
+      return;
+    }
     username = name;
     displayName = name;
-    $('player-name').value = name;
     localStorage.setItem('tankwar-name', name);
+    setText('current-player-name', name);
+    setError('tank-select-error', '');
     tankLoadoutConfirmed = true;
     if (tankSelectReturn === 'offline') {
       openMapSelect();   // bot difficulty (EASY ... EXTREME), bot count and map are chosen here
       return;
     }
-    if (tankSelectReturn === 'connect') {
-      // connectOnline keeps the existing WebSocket protocol and reads the
-      // name from the (hidden) home field which was just updated above.
+    if (tankSelectReturn === 'home') {
       showScreen('home');
-      connectOnline();
       return;
     }
     if (tankSelectReturn === 'onlineMap') {
@@ -3028,8 +3045,12 @@ function chooseOfflineMap(mapId) {
   function startRenderLoop() {
     if (animationId !== null) return;
     lastFrameTime = performance.now();
+    let lastRenderTime = lastFrameTime;
+    const frameInterval = 1000 / 60;
     const frame = (time) => {
       animationId = requestAnimationFrame(frame);
+      if (time - lastRenderTime < frameInterval) return;
+      lastRenderTime = time - ((time - lastRenderTime) % frameInterval);
       const dt = Math.min(.04, Math.max(0, (time - lastFrameTime) / 1000)); lastFrameTime = time;
       if (screenName !== 'game') { removeCountdownOverlay(); return; }
       fpsFrameCount++;
@@ -4048,7 +4069,13 @@ function chooseOfflineMap(mapId) {
   // ---------------------------------------------------------------- event wiring (each handler registered once)
 
   $('online-button').addEventListener('click', connectOnline);
-  $('player-name').addEventListener('keydown', e => { if (e.key === 'Enter') connectOnline(); });
+  $('tank-name').addEventListener('keydown', e => { if (e.key === 'Enter') confirmTankSelection(); });
+  $('change-name').addEventListener('click', () => {
+    if (ws || mode === 'online') closeSocket();
+    setError('tank-select-error', '');
+    openTankSelect('home');
+    $('tank-name').focus();
+  });
   $('server-url').addEventListener('keydown', e => { if (e.key === 'Enter') connectOnline(); });
   $('main-exit').addEventListener('click', quitGame);
 
@@ -4264,7 +4291,20 @@ function chooseOfflineMap(mapId) {
     mode = 'none';
     showScreen('home');
   });
-  $('practice-button').addEventListener('click', () => openTankSelect('offline'));
+  $('practice-button').addEventListener('click', () => {
+    // Name and tank loadout are confirmed on the first screen; keep that choice
+    // and continue straight to the offline room settings from the home menu.
+    if (!tankLoadoutConfirmed) {
+      const savedName = localStorage.getItem('tankwar-name')?.trim();
+      if (savedName) {
+        username = savedName;
+        displayName = savedName;
+        setText('current-player-name', savedName);
+      }
+      tankLoadoutConfirmed = true;
+    }
+    openMapSelect();
+  });
   $('create-button').addEventListener('click', createRoom);
   $('room-mode').addEventListener('change', syncCustomRoomPlayerOptions);
   $('max-players').addEventListener('change', syncCustomRoomPlayerOptions);
@@ -4283,9 +4323,31 @@ function chooseOfflineMap(mapId) {
   $('leave-room').addEventListener('click', () => { if (wsReady && activeRoom) sendMessage('CLeaveRoom'); else { activeRoom = null; showScreen('lobby'); } });
   $('lobby-back').addEventListener('click', () => { if (activeRoom) sendMessage('CLeaveRoom'); else { closeSocket(); showScreen('home'); } });
   $('copy-room-code').addEventListener('click', async () => {
-    const code = $('room-code').textContent;
-    try { await navigator.clipboard.writeText(code); $('copy-room-code').textContent = '✓'; setTimeout(() => $('copy-room-code').textContent = '⧉', 900); }
-    catch (_) { $('join-id').value = code; }
+    const code = $('room-code').textContent.trim();
+    if (!/^[A-Z0-9]{6}$/.test(code)) return;
+    let copied = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(code);
+        copied = true;
+      }
+    } catch (_) { /* Use the compatibility fallback below. */ }
+    if (!copied) {
+      const temporary = document.createElement('textarea');
+      temporary.value = code;
+      temporary.setAttribute('readonly', '');
+      temporary.style.position = 'fixed';
+      temporary.style.left = '-9999px';
+      document.body.append(temporary);
+      temporary.select();
+      try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
+      temporary.remove();
+    }
+    if (copied) {
+      const button = $('copy-room-code');
+      button.textContent = 'ĐÃ SAO CHÉP';
+      setTimeout(() => { if (button.isConnected) button.textContent = 'SAO CHÉP MÃ'; }, 1400);
+    }
   });
   $('overlay-action').addEventListener('click', () => { const action = roundOverlayAction; hideOverlay(); if (action) action(); });
   document.addEventListener('pointerdown', unlockAudio, { once: true });
@@ -4330,7 +4392,8 @@ function chooseOfflineMap(mapId) {
   }
 
   // Small defaults are remembered locally for the next session.
-  $('player-name').value = localStorage.getItem('tankwar-name') || '';
+  $('tank-name').value = localStorage.getItem('tankwar-name') || '';
+  setText('current-player-name', $('tank-name').value || 'CHƯA ĐẶT TÊN');
   const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const pageHost = window.location.hostname || 'localhost';
   // Local static development servers use a separate game server on port 8081.
