@@ -213,7 +213,7 @@
   let selectedTankColor = 'TankRed';
   let selectedHullId = '05';
   let selectedGunId = '05';
-  let tankLoadoutConfirmed = false;
+  let tankLoadoutConfirmed = sessionStorage.getItem('tankwar-loadout-confirmed') === '1';
   let tankSelectReturn = 'home';
   // Online rooms use a separate pre-match draft.  It deliberately never
   // reuses the bot settings shown for local practice.
@@ -914,7 +914,7 @@
     closeSocket(false);
     username = rawName;
     displayName = rawName;
-    tankLoadoutConfirmed = false;
+    tankLoadoutConfirmed = sessionStorage.getItem('tankwar-loadout-confirmed') === '1';
     localStorage.setItem('tankwar-name', rawName);
     localStorage.setItem('tankwar-server', url);
     $('online-button').disabled = true;
@@ -1178,7 +1178,9 @@
       }
       case 'SSelectedMap': {
         selectedMapId = String(Array.isArray(data) ? data[0] : data || 'forest');
-        localMap = trainingMaps.get(selectedMapId) || trainingMaps.get('forest');
+        localMap = selectedMapId === CONTROL_ZONE_MAP.id
+          ? createControlZoneMap()
+          : trainingMaps.get(selectedMapId) || trainingMaps.get('forest');
         camera.x = 0;
         camera.y = 0;
         addFeed(`Bản đồ được chọn: ${MAP_LABELS[selectedMapId] || selectedMapId.toUpperCase()}.`);
@@ -1189,7 +1191,9 @@
         latestSnapshotAt = performance.now();
         rememberSnapshotTanks(latestSnapshot);
         if (mode === 'online') {
-          if (!localMap) localMap = trainingMaps.get(selectedMapId) || trainingMaps.get('forest');
+          if (!localMap) localMap = selectedMapId === CONTROL_ZONE_MAP.id
+            ? createControlZoneMap()
+            : trainingMaps.get(selectedMapId) || trainingMaps.get('forest');
           if (screenName !== 'game') {
             resetMatchUi();
             enterGameplayFullscreen();
@@ -1220,6 +1224,14 @@
             : 'Bạn thua hiệp này. Hiệp tiếp theo sẽ bắt đầu tự động.';
         showKillBanner(title, resultText, bannerClass, 'ROUND RESULT', 2500);
         addFeed(isDraw ? 'Hiệp đấu kết thúc với kết quả hòa.' : `${winner} thắng hiệp đấu.`);
+        break;
+      }
+      case 'SMatchPoint': {
+        const teamName = stringPayload(data) || 'Đội';
+        matchPointTrack = pickMatchPointTrack();
+        matchPointActive = !!matchPointTrack;
+        showKillBanner('MATCH POINT', `${teamName} cần thêm một hiệp để thắng trận!`, 'matchpoint', 'ROUND QUYẾT ĐỊNH', 3200);
+        playSfx('firstBlood', .55);
         break;
       }
       case 'SGameOver':
@@ -1462,6 +1474,11 @@
     $('player-name').value = name;
     localStorage.setItem('tankwar-name', name);
     tankLoadoutConfirmed = true;
+    sessionStorage.setItem('tankwar-loadout-confirmed', '1');
+    if (tankSelectReturn === 'home') {
+      showScreen('home');
+      return;
+    }
     if (tankSelectReturn === 'offline') {
       openMapSelect();   // bot difficulty (EASY ... EXTREME), bot count and map are chosen here
       return;
@@ -3953,7 +3970,8 @@ function chooseOfflineMap(mapId) {
     if (tier >= 2) queueAnnouncement({ banner: [tag(MULTI_TITLES[tier]), `${who} đã hạ ${victim}`, `multi-${tier}${enemy ? ' enemy' : ''}`, 'MULTI KILL', tier >= 5 ? 3600 : 2800], voice: voiceKey(MULTI_SOUNDS[tier], enemy), vol, fallback: () => playKillSting(tier) });
     else if (streakTier) queueAnnouncement({ banner: [tag(STREAK_TITLES[streakTier]), `${who} đã hạ ${victim} · chuỗi ${streak} mạng`, `streak-${streakTier}${enemy ? ' enemy' : ''}`, 'KILLING SPREE', streakTier >= 7 ? 3400 : 2800], voice: voiceKey(STREAK_SOUNDS[streakTier], enemy), vol, fallback: () => playKillSting(Math.min(5, streakTier)) });
     if (shutdown) queueAnnouncement({ banner: ['SHUTDOWN', `${who} đã chấm dứt chuỗi của ${victim} · +${RULES.shutdownBonus}`, `shutdown${enemy ? ' enemy' : ''}`, 'SHUTDOWN', 2800], voice: 'shutdown', vol, fallback: () => playKillSting(1, true) });
-    const teamVoices = mode === 'offline' && !!localGame && !!localGame.team;
+    const teamVoices = (mode === 'offline' && !!localGame && !!localGame.team)
+      || (mode === 'online' && !!onlineDraft && !!onlineDraft.teams && !!onlineDraft.teams[username]);
     if (!special && teamVoices) {
       // Team modes: the voice depends on which side scored. The banner for my own kill is unchanged.
       const ourSideScored = killerSide !== 'enemy';
@@ -4397,7 +4415,10 @@ function chooseOfflineMap(mapId) {
     mode = 'none';
     showScreen('home');
   });
-  $('practice-button').addEventListener('click', () => openTankSelect('offline'));
+  $('practice-button').addEventListener('click', () => {
+    if (tankLoadoutConfirmed) openMapSelect();
+    else openTankSelect('offline');
+  });
   $('create-button').addEventListener('click', createRoom);
   $('room-mode').addEventListener('change', syncCustomRoomPlayerOptions);
   $('max-players').addEventListener('change', syncCustomRoomPlayerOptions);
@@ -4491,6 +4512,11 @@ function chooseOfflineMap(mapId) {
   statusPill('idle', 'SẴN SÀNG KẾT NỐI');
   resetConnectButton();
   resizeCanvasBacking();
+  if (!tankLoadoutConfirmed) {
+    openTankSelect('home');
+  } else {
+    showScreen('home');
+  }
 
   // Expose a small protocol diagnostic through the console for coursework debugging.
   window.TankWarClient = { get mode() { return mode; }, get connected() { return wsReady; }, get room() { return activeRoom; }, send: sendMessage };

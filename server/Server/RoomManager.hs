@@ -24,10 +24,12 @@ import Control.Concurrent.STM
 import Data.Map.Strict         (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text               (Text, pack, unpack)
+import qualified Data.Text as Text
 import Data.Time.Clock         (getCurrentTime)
 import Data.Time.Format        (formatTime, defaultTimeLocale)
 import System.Random           (randomRIO)
-import Control.Monad           (when, unless)`r`nimport Data.Char               (isDigit)
+import Control.Monad           (when, unless)
+import Data.Char               (isDigit)
 import Data.Aeson              (FromJSON(..), Value, eitherDecodeFileStrict', object, withObject, (.:), (.=))
 
 import Common.Types
@@ -176,6 +178,10 @@ doJoin ss username room = do
 --------------------------------------------------------------------------------
 
 -- | Xử lý yêu cầu rời phòng.
+isInGameOver :: GamePhase -> Bool
+isInGameOver (MatchOverPhase _) = True
+isInGameOver _ = False
+
 handleLeaveRoom :: ServerState -> Text -> IO ()
 handleLeaveRoom ss username = do
   maybeRoomId <- atomically $ getClientRoom ss username
@@ -195,10 +201,20 @@ handleLeaveRoom ss username = do
                             nextHost:_ -> nextHost
                             [] -> rsHostPlayer room
                           else rsHostPlayer room
+                botId = "BOT-" <> username
+                botTank = fmap (\tank -> tank { tankId = botId }) (Map.lookup username (rsTanks room))
+                tanksWithBot = case botTank of
+                  Nothing -> Map.delete username (rsTanks room)
+                  Just tank ->
+                    Map.insert botId tank (Map.delete username (rsTanks room))
+                playerIdsWithBots =
+                  if rsPhase room /= LobbyPhase && not (isInGameOver (rsPhase room))
+                    then playerIds' ++ [botId]
+                    else playerIds'
                 room' = room
-                  { rsPlayerIds = playerIds'
+                  { rsPlayerIds = playerIdsWithBots
                   , rsHostPlayer = host'
-                  , rsTanks = Map.delete username (rsTanks room)
+                  , rsTanks = tanksWithBot
                   , rsInputs = Map.delete username (rsInputs room)
                   , rsTeams = Map.delete username (rsTeams room)
                   , rsVotes = Map.delete username (rsVotes room)
@@ -359,7 +375,7 @@ handleStartGame ss username = do
                   idx <- randomRIO (0, length mapPool - 1)
                   pure (mapPool !! idx)
                 else pure pickedVote
-              newMaze <- generateTrainingMaze selectedMap
+              newMaze <- generateTrainingMaze (if rsGameMode room == "zone" then "camdia" else selectedMap)
               shuffledSpawns <- shuffleList (mazeSpawnPts newMaze)
               let mode    = rsGameMode room
                   teamed  = mode /= "deathmatch"
@@ -387,7 +403,7 @@ handleStartGame ss username = do
                   tanks' = Map.fromList [ (pid, freshTank idx pid) | (idx, pid) <- zip [0 ..] pids ]
               atomically $ modifyRoom ss rid $ \r -> r
                 { rsMaze = newMaze
-                , rsMapId = selectedMap
+                , rsMapId = if rsGameMode room == "zone" then "camdia" else selectedMap
                 , rsTanks = tanks'
                 , rsPhase = CountdownPhase countdownDuration
                 , rsRoundNumber = 1
@@ -485,7 +501,6 @@ roomToInfo r = RoomInfo
   , riGameMode       = rsGameMode r
   , riMaxPlayers     = rsMaxPlayers r
   , riCurrentPlayers = length (rsPlayerIds r)
-  , riHostPlayer     = rsHostPlayer r
   , riHasPassword    = case rsPassword r of
                          Just _  -> True
                          Nothing -> False

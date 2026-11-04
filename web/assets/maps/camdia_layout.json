@@ -1,0 +1,24 @@
+{
+  "width": 5632,
+  "height": 5632,
+  "cell_size": 352,
+  "grid_offset": 0,
+  "wall_rectangles": [
+    {"x": 990, "y": 1360, "width": 180, "height": 140},
+    {"x": 705, "y": 2310, "width": 238, "height": 219},
+    {"x": 2081, "y": 1292, "width": 238, "height": 191},
+    {"x": 1708, "y": 2042, "width": 196, "height": 157},
+    {"x": 1466, "y": 2754, "width": 259, "height": 277},
+    {"x": 2170, "y": 2108, "width": 238, "height": 191},
+    {"x": 3318, "y": 1470, "width": 252, "height": 202},
+    {"x": 3129, "y": 2164, "width": 231, "height": 185},
+    {"x": 3265, "y": 120, "width": 217, "height": 174},
+    {"x": 3310, "y": 341, "width": 217, "height": 174},
+    {"x": 4600, "y": 3440, "width": 238, "height": 191},
+    {"x": 1420, "y": 4700, "width": 245, "height": 196},
+    {"x": 3390, "y": 4701, "width": 238, "height": 191},
+    {"x": 2030, "y": 4150, "width": 245, "height": 196}
+  ],
+  "blocked_cells": [],
+  "spawn_centres": [[410, 410], [5222, 5222], [5222, 410], [410, 5222]]
+}

@@ -26,6 +26,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import Data.Ord (comparing, Down(..))
 import Data.Text (Text)
+import qualified Data.Text as Text
 
 import Common.Config
 import Common.Types
@@ -81,7 +82,7 @@ retainActiveEntities playerIds tanks bullets =
   , filter (isActive . bulOwnerId) bullets
   )
   where
-    isActive playerId = playerId `elem` playerIds
+    isActive playerId = playerId `elem` playerIds || Text.isPrefixOf "BOT-" playerId
 
 -- | Dò tia laser theo các tường axis-aligned của mê cung. Mỗi segment kết
 -- thúc tại tường gần nhất, sau đó hướng đi được phản xạ. Không có IO hay state

@@ -122,6 +122,8 @@ data ServerMessage
 
   | SRoundEnd !Text ![(Text, Int)]
     -- ^ (Người thắng round, bảng điểm [(username, score)])
+  | SMatchPoint !Text
+    -- ^ Đội sắp kết thúc trận đấu (match point)
 
   | SMatchOver !Text ![(Text, Int)]
     -- ^ (Người thắng chung cuộc, bảng điểm cuối cùng)

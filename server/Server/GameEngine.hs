@@ -13,6 +13,7 @@ import Control.Monad            (forM_, when, unless, void, forever, replicateM_
 import Data.Map.Strict          (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text                (Text, pack)
+import qualified Data.Text as Text
 import Data.Time.Clock          (getCurrentTime)
 import Data.Time.Format         (formatTime, defaultTimeLocale)
 import System.Random            (randomRIO)
@@ -57,10 +58,15 @@ gameLoopForever ss db store roomId lastT acc = do
     Nothing -> return ()  -- Phòng đã bị xoá
     Just room
       -- Chỉ còn <= 1 người: không thể tiếp tục trận, đưa phòng về Lobby.
-      | length (rsPlayerIds room) < 2
-      , not (isLobbyOrOver (rsPhase room)) -> do
-          atomically $ modifyRoom ss roomId $ \r -> r { rsPhase = LobbyPhase }
-          putStrLn $ "[GameLoop] Phòng " ++ show roomId ++ " không đủ người, dừng trận"
+      | not (isLobbyOrOver (rsPhase room))
+      , null (filter (not . Text.isPrefixOf "BOT-" ) (rsPlayerIds room)) -> do
+          let tanks' = Map.elems (rsTanks room)
+              winner = if rsGameMode room == "deathmatch"
+                then rankingWinner tanks'
+                else if rsGameMode room == "zone"
+                  then teamWinnerName (if length [t | t <- tanks', tankTeam t == 0] >= length [t | t <- tanks', tankTeam t == 1] then 0 else 1) tanks'
+                  else teamWinnerName (if length [t | t <- tanks', tankTeam t == 0] >= length [t | t <- tanks', tankTeam t == 1] then 0 else 1) tanks'
+          finishMatch ss db store roomId winner
       | otherwise ->
           case rsPhase room of
             MatchOverPhase _ -> return ()  -- Trận kết thúc, dừng loop
@@ -169,8 +175,13 @@ tickInGame ss db store roomId room = do
   (boxes1, bullets4, boxEvents) <-
     processBulletBoxCollisions (rsMysteryBoxes room) bullets3 tanks4
 
+  -- Hộp vật phẩm có thể nhặt trực tiếp bằng va chạm xe tăng. Logic này dùng
+  -- cùng tọa độ/lăn kính với va chạm đạn, nên người chơi không cần phải bắn box.
+  (boxesTouched, tankPickupEvents) <- processTankBoxCollisions boxes1 tanks4
+  let boxEvents' = boxEvents ++ tankPickupEvents
+
   -- Bước 7: Cập nhật Mystery Box timer & spawn
-  (boxes2, boxTimer') <- updateMysteryBoxTimer dt (rsBoxTimer room) boxes1 maze
+  (boxes2, boxTimer') <- updateMysteryBoxTimer dt (rsBoxTimer room) boxesTouched maze
 
   -- Bước 8: Ghi nhận kill events vào DB & broadcast
   forM_ killEvents $ \(killer, victim) -> do
@@ -179,11 +190,11 @@ tickInGame ss db store roomId room = do
     addDeath db victim
 
   -- Bước 9: Ghi nhận box pickup events và trao vũ khí cho người nhặt
-  forM_ boxEvents $ \(picker, btype) ->
+  forM_ boxEvents' $ \(picker, btype) ->
     broadcastToRoom ss roomId (SMysteryBoxPickup picker btype)
   let tanks4g = foldl (\m (picker, btype) ->
                   Map.adjust (\t -> t { tankWeapon = grantWeapon btype (tankWeapon t) }) picker m)
-                tanks4 boxEvents
+                tanks4 boxEvents'
 
   -- Bước 10: Hồi sinh (Tử chiến, Cấm Địa) và cập nhật vùng chiếm
   tanks5 <- respawnTanks mode maze tanks4g
@@ -236,9 +247,16 @@ endTeamRound ss roomId tanks team = do
     , rsPhase    = RoundEndPhase teamRoundEndDelay winner
     }
   maybeRoom <- atomically $ getRoom ss roomId
-  forM_ maybeRoom $ \r ->
+  forM_ maybeRoom $ \r -> do
     broadcastToRoom ss roomId
       (SRoundEnd winner [ (tankId t, tankPoints t) | t <- Map.elems (rsTanks r) ])
+    let wins = rsTeamWins r
+        need = teamRounds `div` 2 + 1
+        matchPointTeams = [ teamName | (teamName, index) <- zip ["Blue", "Red"] [0, 1]
+                                      , wins !! index == need - 1
+                                      ]
+    forM_ matchPointTeams $ \teamName ->
+      broadcastToRoom ss roomId (SMatchPoint teamName)
 
 -- | Sau thời gian hiển thị kết quả round: hoặc kết thúc trận (một đội thắng quá nửa
 -- số round, hoặc đã hết số round), hoặc bắt đầu round mới.
@@ -583,6 +601,27 @@ processBulletTankCollisions teamMode respawnSecs tanks bullets = do
 --------------------------------------------------------------------------------
 -- Va chạm Đạn - Mystery Box
 --------------------------------------------------------------------------------
+
+processTankBoxCollisions :: [MysteryBox] -> Map Text Tank
+                         -> IO ([MysteryBox], [(Text, BulletType)])
+processTankBoxCollisions boxes tanks = do
+  let pickups = [ (tankId tank, box)
+                | tank <- Map.elems tanks
+                , tankAlive tank
+                , box <- boxes
+                , mbActive box
+                , vec2Dist (tankPos tank) (mbPos box) < (tankHitRadius + boxRadius)
+                ]
+      pickedIndexes = [ i | (_, box) <- pickups, i <- findBoxIndexes box boxes ]
+      uniqueIndexes = foldl (\acc i -> if i `elem` acc then acc else acc ++ [i]) [] pickedIndexes
+      boxes' = [ box | (i, box) <- zip [0..] boxes, i `notElem` uniqueIndexes ]
+      events = [ (pid, randomBulletType (floor (vx (mbPos box)))) | (pid, box) <- pickups ]
+  return (boxes', events)
+  where
+    findBoxIndexes box xs = [ i | (i, candidate) <- zip [0..] xs, mbPos candidate == mbPos box ]
+    randomBulletType seed =
+      let btypes = [ShotgunBullet, LaserBullet, WallPiercingBullet, GatlingBullet]
+      in btypes !! (abs seed `mod` length btypes)
 
 processBulletBoxCollisions :: [MysteryBox] -> [Bullet] -> Map Text Tank
                           -> IO ([MysteryBox], [Bullet], [(Text, BulletType)])
