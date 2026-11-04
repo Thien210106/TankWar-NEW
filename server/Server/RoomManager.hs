@@ -26,7 +26,7 @@ import Data.Text               (Text, pack, unpack)
 import Data.Time.Clock         (getCurrentTime)
 import Data.Time.Format        (formatTime, defaultTimeLocale)
 import System.Random           (randomRIO)
-import Control.Monad           (when, unless)
+import Control.Monad           (unless)
 import Data.Aeson              (FromJSON(..), Value, eitherDecodeFileStrict', object, withObject, (.:), (.=))
 
 import Common.Types
@@ -189,15 +189,35 @@ handleLeaveRoom ss username = do
   case maybeRoomId of
     Nothing  -> sendToClient ss username (SRoomError "Bạn không ở trong phòng nào!")
     Just rid -> do
-      atomically $ do
-        modifyRoom ss rid $ \r -> r
-          { rsPlayerIds = filter (/= username) (rsPlayerIds r)
-          , rsTanks     = Map.delete username (rsTanks r)
-          , rsInputs    = Map.delete username (rsInputs r)
-          , rsTeams     = Map.delete username (rsTeams r)
-          , rsVotes     = Map.delete username (rsVotes r)
-          }
+      -- Remove the player and hand off host in one STM transaction so every
+      -- observer sees the same ordered roster and the next player as host.
+      remaining <- atomically $ do
+        rooms <- readTVar (ssRooms ss)
+        result <- case Map.lookup rid rooms of
+          Nothing -> pure Nothing
+          Just room -> do
+            let playerIds' = filter (/= username) (rsPlayerIds room)
+                host' = if rsHostPlayer room == username
+                          then case playerIds' of
+                            nextHost:_ -> nextHost
+                            [] -> rsHostPlayer room
+                          else rsHostPlayer room
+                room' = room
+                  { rsPlayerIds = playerIds'
+                  , rsHostPlayer = host'
+                  , rsTanks = Map.delete username (rsTanks room)
+                  , rsInputs = Map.delete username (rsInputs room)
+                  , rsTeams = Map.delete username (rsTeams room)
+                  , rsVotes = Map.delete username (rsVotes room)
+                  }
+            writeTVar (ssRooms ss) (Map.insert rid room' rooms)
+            pure (Just (playerIds', host', rsHostPlayer room == username))
         clearClientRoom ss username
+        pure result
+      case remaining of
+        Just (playerIds', newHost, hostChanged) | hostChanged, not (null playerIds') ->
+          putStrLn $ "[Room] Chuyển host phòng " ++ show rid ++ " sang " ++ show newHost
+        _ -> pure ()
 
       -- Kiểm tra phòng trống -> xoá phòng
       maybeRoom <- atomically $ getRoom ss rid
@@ -209,13 +229,6 @@ handleLeaveRoom ss username = do
               atomically $ removeRoom ss rid
               putStrLn $ "[Room] Phòng " ++ show rid ++ " đã bị xoá (trống)"
             else do
-              -- Nếu host rời, chuyển host
-              when (rsHostPlayer r == username) $ do
-                let newHost = head (rsPlayerIds r)
-                atomically $ modifyRoom ss rid $ \r' ->
-                  r' { rsHostPlayer = newHost }
-                putStrLn $ "[Room] Chuyển host phòng " ++ show rid
-                        ++ " sang " ++ show newHost
               broadcastDraft ss rid
 
               broadcastToRoom ss rid (SPlayerLeft username)
@@ -294,6 +307,7 @@ roomDraftValue room = object
   , "teams" .= rsTeams room
   , "maxPlayers" .= rsMaxPlayers room
   , "players" .= rsPlayerIds room
+  , "host" .= rsHostPlayer room
   ]
 
 -- | Chủ phòng nhấn Start. A True result means this call made the one valid
@@ -447,6 +461,7 @@ roomToInfo r = RoomInfo
   , riGameMode       = rsGameMode r
   , riMaxPlayers     = rsMaxPlayers r
   , riCurrentPlayers = length (rsPlayerIds r)
+  , riHostPlayer     = rsHostPlayer r
   , riHasPassword    = case rsPassword r of
                          Just _  -> True
                          Nothing -> False

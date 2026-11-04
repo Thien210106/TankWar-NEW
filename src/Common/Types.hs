@@ -260,6 +260,7 @@ data RoomInfo = RoomInfo
   , riGameMode      :: !Text
   , riMaxPlayers    :: {-# UNPACK #-} !Int
   , riCurrentPlayers :: {-# UNPACK #-} !Int
+  , riHostPlayer    :: !Text
   , riHasPassword   :: !Bool
   , riPhase         :: !GamePhase
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
@@ -649,6 +650,7 @@ data RoomInfo = RoomInfo
   , riGameMode      :: !Text
   , riMaxPlayers    :: {-# UNPACK #-} !Int
   , riCurrentPlayers :: {-# UNPACK #-} !Int
+  , riHostPlayer    :: !Text
   , riHasPassword   :: !Bool
   , riPhase         :: !GamePhase
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)

@@ -1036,7 +1036,12 @@
         activeRoom = unwrapOne(data); isHost = false; onRoomReady(); break;
       case 'SRoomRoster': {
         const list = Array.isArray(data) ? data : (Array.isArray(unwrapOne(data)) ? unwrapOne(data) : []);
-        const hostName = readField(activeRoom, 'riHostPlayer') || (roomPlayerNames[0]?.host ? roomPlayerNames[0].name : username);
+        const rosterNames = list.map(item => Array.isArray(item) ? item[0] : (item.name || item.username || 'Người chơi'));
+        const hostName = readField(activeRoom, 'riHostPlayer')
+          || (roomPlayerNames.find(player => player.host)?.name)
+          || rosterNames[0]
+          || '';
+        isHost = hostName === username || hostName === displayName;
         roomPlayerNames = list.map(item => {
           const pName = Array.isArray(item) ? item[0] : (item.name || item.username || 'Người chơi');
           const pColor = Array.isArray(item) ? item[1] : (item.color || 'TankBlue');
@@ -1044,7 +1049,7 @@
             name: pName,
             color: pColor,
             self: pName === username || pName === displayName,
-            host: pName === hostName || (isHost && (pName === username || pName === displayName))
+            host: pName === hostName
           };
         });
         renderRoomPlayers();
@@ -1055,9 +1060,12 @@
         break;
       }
       case 'SDraftOpened': {
-        // The host opened the match flow. Every room member chooses a tank
-        // before casting a map vote, so no one is sent into a practice game.
-        if (activeRoom && screenName === 'room') openTankSelect('onlineMap');
+        // The name and tank were confirmed before entering the home menu.
+        // Reuse that loadout and go straight to the online match setup.
+        if (activeRoom && screenName === 'room') {
+          sendMessage('CTankReady');
+          openOnlineMapSelect();
+        }
         break;
       }
       case 'SRoomError':
@@ -1727,6 +1735,24 @@ function chooseOfflineMap(mapId) {
   function updateOnlineDraft(payload) {
     const draft = payload && typeof payload === 'object' ? payload : {};
     const players = Array.isArray(draft.players) ? draft.players : [];
+    if (typeof draft.host === 'string' && draft.host) {
+      isHost = draft.host === username;
+      const currentPlayers = new Map(roomPlayerNames.map(player => [player.name, player]));
+      roomPlayerNames = players.map(entry => {
+        const name = typeof entry === 'string' ? entry : (entry.username || entry.name || 'Người chơi');
+        const existing = currentPlayers.get(name) || {};
+        return {
+          ...existing,
+          name,
+          self: name === username || name === displayName,
+          host: name === draft.host,
+          waiting: false
+        };
+      });
+      if (activeRoom && !Array.isArray(activeRoom)) {
+        activeRoom = { ...activeRoom, riCurrentPlayers: players.length, riHostPlayer: draft.host };
+      }
+    }
     onlineDraft = {
       players: players.map(player => typeof player === 'string' ? player : (player.username || player.name || 'Người chơi')),
       maxPlayers: Math.max(2, Number(draft.maxPlayers || onlineDraft.maxPlayers || 4)),
@@ -1739,6 +1765,7 @@ function chooseOfflineMap(mapId) {
       teams: draft.teams && typeof draft.teams === 'object' ? draft.teams : {},
       stage: draft.stage || 'lobby'
     };
+    if (screenName === 'room') renderRoomPlayers();
     if (mapSelectMode === 'online') renderOnlineMatchSetup();
   }
 
@@ -4315,10 +4342,9 @@ function chooseOfflineMap(mapId) {
   $('start-button').addEventListener('click', () => {
     unlockAudio(); setError('lobby-error', '');
     if (!isHost) { setError('lobby-error', 'Chỉ chủ phòng mới có thể bắt đầu.'); return; }
-    // This begins the online pre-match flow; it never starts a local practice
-    // arena. The server asks every member to choose a tank, then map voting.
+    // The server opens the online draft; SDraftOpened advances everyone
+    // directly to map and team setup using their already selected tank.
     sendMessage('COpenDraft');
-    openTankSelect('onlineMap');
   });
   $('leave-room').addEventListener('click', () => { if (wsReady && activeRoom) sendMessage('CLeaveRoom'); else { activeRoom = null; showScreen('lobby'); } });
   $('lobby-back').addEventListener('click', () => { if (activeRoom) sendMessage('CLeaveRoom'); else { closeSocket(); showScreen('home'); } });
