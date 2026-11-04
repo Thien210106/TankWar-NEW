@@ -71,6 +71,9 @@ testTank playerId color = Tank
   , tankMaxAmmo = 0
   , tankReloadTimer = 0
   , tankSurvivalCarry = 0
+  , tankHull = "05"
+  , tankGun = "05"
+  , tankTeam = -1
   }
 
 --------------------------------------------------------------------------------

@@ -93,6 +93,12 @@ data RoomState = RoomState
     -- ^ Thời gian bắt đầu trận đấu (ISO 8601)
   , rsBoxTimer    :: !Float
     -- ^ Đếm ngược đến lần spawn hộp bí ẩn tiếp theo
+  , rsMatchClock  :: !Float
+    -- ^ Giây đã trôi qua trong trận (Tử chiến) hoặc trong round hiện tại (Đấu đội)
+  , rsTeamWins    :: ![Int]
+    -- ^ Số round thắng của đội 0 và đội 1 (Đấu đội)
+  , rsZone        :: !(Maybe ZoneState)
+    -- ^ Trạng thái vùng chiếm (chỉ có ở chế độ Cấm Địa)
   }
 
 -- | Trạng thái toàn cục của server.

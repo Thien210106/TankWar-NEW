@@ -43,6 +43,8 @@ data ClientMessage
 
   | COpenDraft
   | CTankReady
+  | CSetLoadout { clsHull :: !Text, clsGun :: !Text }
+    -- ^ Thân xe và nòng pháo đã chọn (mã 2 chữ số)
   | CChooseTeam { cctTeam :: !Text }
   | CMapVote { cmvMapId :: !Text }
     -- ^ Tham gia phòng theo Room ID

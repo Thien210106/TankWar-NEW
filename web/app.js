@@ -150,6 +150,11 @@
       const hull = partImage('hull', selectedHullId), gun = partImage('gun', selectedGunId);
       return { hull: hull.complete && hull.naturalWidth ? hull : images.hull, gun: gun.complete && gun.naturalWidth ? gun : images.gun };
     }
+    const other = tankLoadouts[String(tankId || '')];
+    if (other && other.hull && other.gun) {
+      const hull = partImage('hull', other.hull), gun = partImage('gun', other.gun);
+      return { hull: hull.complete && hull.naturalWidth ? hull : images.hull, gun: gun.complete && gun.naturalWidth ? gun : images.gun };
+    }
     return { hull: images.hull, gun: images.gun };
   }
   // The supplied gun sprites already include their own turret assembly.  A
@@ -175,7 +180,7 @@
     hudImages[`loading-${frame}`] = image;
   });
 
-  let screenName = 'tankSelect';
+  let screenName = 'home';
   let mode = 'none';
   let ws = null;
   let wsReady = false;
@@ -187,6 +192,10 @@
   let roomPlayerNames = [];
   let roomList = [];
   let latestSnapshot = null;
+  let latestSnapshotAt = 0;      // performance.now() của snapshot online gần nhất
+  let tankLoadouts = {};         // tankId -> { hull, gun } lấy từ snapshot server
+  let tankMotion = {};           // tankId -> đang thật sự di chuyển giữa 2 snapshot
+  let prevTankPos = {};
   let inputTimer = null;
   let animationId = null;
   let lastFrameTime = 0;
@@ -898,16 +907,10 @@
   function connectOnline() {
     unlockAudio();
     setError('home-error', '');
-    const rawName = $('tank-name').value.trim();
-    if (!rawName) {
-      setError('tank-select-error', 'Nhập tên chiến binh trước khi kết nối.');
-      showScreen('tankSelect');
-      $('tank-name').focus();
-      return;
-    }
+    const rawName = $('player-name').value.trim() || localStorage.getItem('tankwar-name') || 'TankPilot';
     const url = $('server-url').value.trim();
-    $('tank-name').value = rawName;
-    if (!/^wss?:\/\//i.test(url)) { setError('tank-select-error', 'Địa chỉ server phải bắt đầu bằng ws:// hoặc wss://'); return; }
+    $('player-name').value = rawName;
+    if (!/^wss?:\/\//i.test(url)) { setError('home-error', 'Địa chỉ server phải bắt đầu bằng ws:// hoặc wss://'); $('server-url').focus(); return; }
     closeSocket(false);
     username = rawName;
     displayName = rawName;
@@ -918,14 +921,14 @@
     $('online-button').setAttribute('aria-label', 'Đang mở danh sách phòng');
     let socket;
     try { socket = new WebSocket(url); }
-    catch (error) { resetConnectButton(); statusPill('idle', 'CHƯA KẾT NỐI SERVER'); setError('tank-select-error', `Không tạo được kết nối WebSocket: ${error.message}`); return; }
+    catch (error) { resetConnectButton(); statusPill('idle', 'CHƯA KẾT NỐI SERVER'); setError('home-error', `Không tạo được kết nối WebSocket: ${error.message}`); return; }
     ws = socket;
     const timeout = window.setTimeout(() => {
       if (socket.readyState !== WebSocket.OPEN && ws === socket) {
         socket.close();
         resetConnectButton();
         statusPill('idle', 'CHƯA KẾT NỐI SERVER');
-        setError(screenName === 'tankSelect' ? 'tank-select-error' : 'home-error', 'Không kết nối được server. Hãy kiểm tra server game, địa chỉ WebSocket và cổng đã mở.');
+        setError('home-error', 'Không kết nối được server. Hãy kiểm tra server game, địa chỉ WebSocket và cổng đã mở.');
       }
     }, 8000);
     socket.addEventListener('open', () => {
@@ -943,7 +946,7 @@
     });
     socket.addEventListener('error', () => {
       statusPill('idle', 'LỖI KẾT NỐI');
-      setError(screenName === 'tankSelect' ? 'tank-select-error' : 'home-error', 'Kết nối WebSocket thất bại. Kiểm tra địa chỉ và trạng thái server.');
+      if (screenName === 'home') setError('home-error', 'Kết nối WebSocket thất bại. Kiểm tra địa chỉ và trạng thái server.');
     });
     socket.addEventListener('close', () => {
       if (ws !== socket) return;
@@ -952,8 +955,7 @@
       if (screenName === 'game' && mode === 'online') {
         showOverlay('MẤT KẾT NỐI', 'Kết nối tới server game đã đóng.', 'VỀ TRANG CHỦ', () => { closeSocket(false); showScreen('home'); });
       } else if (screenName !== 'home') {
-        const errorTarget = screenName === 'lobby' ? 'lobby-error' : screenName === 'tankSelect' ? 'tank-select-error' : 'home-error';
-        setError(errorTarget, 'Kết nối server đã đóng. Hãy kiểm tra server rồi thử lại.');
+        setError(screenName === 'lobby' ? 'lobby-error' : 'home-error', 'Kết nối server đã đóng. Hãy quay về trang chủ và kết nối lại.');
       }
     });
   }
@@ -971,6 +973,84 @@
     stopInputSender();
     statusPill('idle', 'SẴN SÀNG KẾT NỐI');
     resetConnectButton();
+  }
+
+  // Ghi nhớ ngoại hình (thân/nòng) của từng xe và xe nào đang thật sự di chuyển.
+  function rememberSnapshotTanks(snap) {
+    const loadouts = {}, motion = {}, positions = {};
+    (readField(snap, 'wsTanks') || []).forEach(t => {
+      const id = String(readField(t, 'tankId') || '');
+      if (!id) return;
+      const hull = readField(t, 'tankHull'), gun = readField(t, 'tankGun');
+      if (hull && gun) loadouts[id] = { hull: String(hull), gun: String(gun) };
+      const pos = readField(t, 'tankPos');
+      if (pos) {
+        const x = Number(readField(pos, 'vx') || 0), y = Number(readField(pos, 'vy') || 0);
+        const before = prevTankPos[id];
+        motion[id] = !before || Math.hypot(x - before.x, y - before.y) > .5;
+        positions[id] = { x, y };
+      }
+    });
+    tankLoadouts = loadouts; tankMotion = motion; prevTankPos = positions;
+  }
+
+  // Server gửi 60 snapshot/giây, nhưng màn hình có thể vẽ nhiều khung hơn (hoặc snapshot
+  // đến trễ). Dự đoán vị trí xe và đạn theo vận tốc trong tối đa 2 tick để chuyển động mượt.
+  function smoothSnapshot(snap, ageSeconds) {
+    const age = Math.max(0, Math.min(.034, ageSeconds));
+    if (!snap || age <= 0) return snap;
+    const advance = (pos, vel) => {
+      if (!pos || !vel) return pos;
+      return { ...pos, vx: Number(readField(pos, 'vx') || 0) + Number(readField(vel, 'vx') || 0) * age,
+                       vy: Number(readField(pos, 'vy') || 0) + Number(readField(vel, 'vy') || 0) * age };
+    };
+    const tanks = (readField(snap, 'wsTanks') || []).map(t => {
+      if (readField(t, 'tankAlive') === false) return t;
+      if (tankMotion[String(readField(t, 'tankId') || '')] === false) return t;
+      return { ...t, tankPos: advance(readField(t, 'tankPos'), readField(t, 'tankVel')) };
+    });
+    const bullets = (readField(snap, 'wsBullets') || []).map(b => ({ ...b, bulPos: advance(readField(b, 'bulPos'), readField(b, 'bulVel')) }));
+    return { ...snap, wsTanks: tanks, wsBullets: bullets };
+  }
+
+  // Adapter: biến snapshot online thành "game" cùng hình dạng như localGame để các HUD
+  // (điểm round, bảng kill, thanh chiếm vùng) và vòng Cấm Địa dùng chung với chế độ offline.
+  // Đội của người chơi luôn được đổi thành đội 0 (xanh), giống offline.
+  let onlineViewCache = { at: -1, game: null };
+  function hudGame() {
+    if (mode === 'offline') return localGame;
+    if (mode !== 'online' || !latestSnapshot) return null;
+    if (onlineViewCache.at === latestSnapshotAt) return onlineViewCache.game;
+    const snap = latestSnapshot;
+    let game = null;
+    if (String(readField(snap, 'wsMode') || 'deathmatch') !== 'deathmatch') {
+      const raw = readField(snap, 'wsTanks') || [];
+      const meRaw = raw.find(t => isMe(String(readField(t, 'tankId') || '')));
+      const flip = !!meRaw && Number(readField(meRaw, 'tankTeam')) === 1;
+      const mapTeam = v => (v < 0 ? v : (flip ? 1 - v : v));
+      const pair = arr => (Array.isArray(arr) ? (flip ? [Number(arr[1] || 0), Number(arr[0] || 0)] : [Number(arr[0] || 0), Number(arr[1] || 0)]) : [0, 0]);
+      const tanks = raw.map(t => ({
+        tankId: String(readField(t, 'tankId') || ''), tankAlive: readField(t, 'tankAlive') !== false,
+        tankKills: Number(readField(t, 'tankKills') || 0), team: mapTeam(Number(readField(t, 'tankTeam')))
+      }));
+      const mi = tanks.findIndex(t => isMe(t.tankId));
+      if (mi > 0) tanks.unshift(tanks.splice(mi, 1)[0]);
+      const zr = readField(snap, 'wsZone');
+      const zone = zr ? {
+        cx: Number(readField(zr, 'zsCx')), cy: Number(readField(zr, 'zsCy')), radius: Number(readField(zr, 'zsRadius')),
+        open: !!readField(zr, 'zsOpen'), lockLeft: Number(readField(zr, 'zsLockLeft')), elapsed: Number(readField(zr, 'zsElapsed')),
+        progress: pair(readField(zr, 'zsProgress')), inside: pair(readField(zr, 'zsInside')),
+        owner: mapTeam(Number(readField(zr, 'zsOwner'))), overtime: !!readField(zr, 'zsOvertime'),
+        hold: Number(readField(zr, 'zsHold')), holdTeam: mapTeam(Number(readField(zr, 'zsHoldTeam'))), orbitRadius: 0
+      } : null;
+      game = {
+        team: true, zone, teamSize: Math.max(1, Math.round(tanks.length / 2)),
+        rounds: Number(readField(snap, 'wsRounds') || 1), round: Number(readField(snap, 'wsRound') || 1),
+        wins: pair(readField(snap, 'wsTeamWins')), tanks
+      };
+    }
+    onlineViewCache = { at: latestSnapshotAt, game };
+    return game;
   }
 
   function handleServerMessage(msg) {
@@ -1010,7 +1090,6 @@
         mode = 'online';
         setError('home-error', '');
         setError('lobby-error', '');
-        setError('tank-select-error', '');
         resetConnectButton();
         statusPill('idle', 'SẴN SÀNG TÌM PHÒNG');
         showScreen('lobby');
@@ -1018,14 +1097,10 @@
         addFeed(`Đã đăng nhập: ${displayName}`);
         break;
       }
-      case 'SLoginError': {
-        setError('tank-select-error', stringPayload(data) || 'Server từ chối đăng nhập. Hãy thử một tên khác.');
-        closeSocket(false);
-        showScreen('tankSelect');
-        $('tank-name').focus();
+      case 'SLoginError':
+        setError(screenName === 'lobby' ? 'lobby-error' : 'home-error', stringPayload(data) || 'Server từ chối đăng nhập.');
         resetConnectButton();
         break;
-      }
       case 'SRoomList':
         roomList = Array.isArray(data) ? data : (Array.isArray(unwrapOne(data)) ? unwrapOne(data) : []);
         renderRoomList();
@@ -1103,6 +1178,8 @@
       }
       case 'SGameSnapshot': {
         latestSnapshot = unwrapOne(data);
+        latestSnapshotAt = performance.now();
+        rememberSnapshotTanks(latestSnapshot);
         if (mode === 'online') {
           if (!localMap) localMap = trainingMaps.get(selectedMapId) || trainingMaps.get('forest');
           if (screenName !== 'game') {
@@ -1145,7 +1222,9 @@
         const mineTank = latestSnapshot ? findMyTank(latestSnapshot) : null;
         const mineStats = mineTank ? tankStats(mineTank) : null;
         const pointBoard = latestSnapshot ? scoreboardEntries(latestSnapshot).map(e => [e.id, e.points]) : [];
-        const onlineWon = winner === username || (mineStats && mineStats.kills > 0);
+        const winTeam = onlineDraft && onlineDraft.teams && onlineDraft.teams[winner];
+        const myTeamEnd = onlineDraft && onlineDraft.teams && onlineDraft.teams[username];
+        const onlineWon = winner === username || (!!myTeamEnd && winTeam === myTeamEnd);
         playEndSfx(onlineWon, .62);
         showEndSplash(onlineWon ? 'win' : 'lose', () => showPostMatch({
           title: onlineWon ? 'CHIẾN THẮNG' : 'TRẬN ĐẤU KẾT THÚC',
@@ -1348,13 +1427,11 @@
 
   function openTankSelect(returnTo) {
     tankSelectReturn = returnTo;
-    const savedName = $('tank-name').value.trim() || username || displayName || localStorage.getItem('tankwar-name') || '';
+    const savedName = $('player-name').value.trim() || username || displayName || localStorage.getItem('tankwar-name') || '';
     $('tank-name').value = savedName;
     const roomId = activeRoom && readField(activeRoom, 'riRoomId');
     $('tank-select-note').textContent = returnTo === 'offline'
       ? 'Sau khi xác nhận xe, chọn độ khó bot, số bot và map thử. Map online vẫn do server ngẫu nhiên.'
-      : returnTo === 'home'
-        ? 'Đặt tên và chọn xe trước khi chọn chế độ chơi.'
       : returnTo === 'onlineMap'
         ? 'Chọn xe của bạn, rồi bỏ phiếu chọn chiến trường cùng mọi người trong phòng.'
       : roomId
@@ -1371,27 +1448,25 @@
 
   function confirmTankSelection() {
     unlockAudio();
-    const name = $('tank-name').value.trim();
-    if (!name) {
-      setError('tank-select-error', 'Nhập tên chiến binh trước khi tiếp tục.');
-      $('tank-name').focus();
-      return;
-    }
+    const name = $('tank-name').value.trim() || $('player-name').value.trim() || 'TankPilot';
     username = name;
     displayName = name;
+    $('player-name').value = name;
     localStorage.setItem('tankwar-name', name);
-    setText('current-player-name', name);
-    setError('tank-select-error', '');
     tankLoadoutConfirmed = true;
     if (tankSelectReturn === 'offline') {
       openMapSelect();   // bot difficulty (EASY ... EXTREME), bot count and map are chosen here
       return;
     }
-    if (tankSelectReturn === 'home') {
+    if (tankSelectReturn === 'connect') {
+      // connectOnline keeps the existing WebSocket protocol and reads the
+      // name from the (hidden) home field which was just updated above.
       showScreen('home');
+      connectOnline();
       return;
     }
     if (tankSelectReturn === 'onlineMap') {
+      sendMessage('CSetLoadout', { clsHull: String(selectedHullId).padStart(2, '0'), clsGun: String(selectedGunId).padStart(2, '0') });
       sendMessage('CTankReady');
       openOnlineMapSelect();
       return;
@@ -1582,6 +1657,14 @@
 
   function startMatchmaking(preferredMap) {
     unlockAudio();
+    // Server hiện chưa hỗ trợ ghép trận tự động (CStartMatchmaking không tồn tại
+    // trong Common.Protocol). Báo rõ thay vì quay vòng mãi mãi.
+    setError('map-error', 'Ghép trận tự động chưa được server hỗ trợ. Hãy dùng ĐĂNG NHẬP ONLINE rồi tạo/vào phòng.');
+    cancelMatchmaking();
+    return;
+  }
+
+  function startMatchmakingUnsupported(preferredMap) {
     const isZone = botSettings.zone && botSettings.teamSize >= 2;
     const isTeam = !isZone && botSettings.teamSize >= 2;
     const size = botSettings.teamSize || 0;
@@ -1667,10 +1750,10 @@
       socket.onopen = () => {
         wsReady = true;
         statusPill('online', 'ĐÃ KẾT NỐI SERVER');
-        sendMessage('CLogin', { clUsername: name, username: name });
+        sendMessage('CLogin', { clUsername: name, clDisplayName: name });
         onReady();
       };
-      socket.onmessage = e => handleServerMessage(e.data);
+      socket.onmessage = e => { try { handleServerMessage(JSON.parse(e.data)); } catch (_) { handleServerMessage(e.data); } };
       socket.onerror = err => {
         console.warn('Matchmaking WS error:', err);
         cancelMatchmaking();
@@ -2689,7 +2772,7 @@ function chooseOfflineMap(mapId) {
   // Progress bars (blue left, red right), locked with a countdown, then percentages + tanks inside the zone.
   function updateZoneHud() {
     const box = $('zone-hud'); if (!box) return;
-    const g = mode === 'offline' ? localGame : null;
+    const g = hudGame();
     if (!g || !g.zone) { if (!box.hidden) box.hidden = true; return; }
     if (box.hidden) box.hidden = false;
     const z = g.zone;
@@ -2718,7 +2801,7 @@ function chooseOfflineMap(mapId) {
 
   // Capture zone drawn on the canvas, under the tanks.
   function drawControlZone() {
-    const g = localGame, z = g && g.zone; if (!z) return;
+    const g = hudGame(), z = g && g.zone; if (!z) return;
     const s = localWorldScale(), c = localToScreen({ vx: z.cx, vy: z.cy }), r = z.radius * s;
     if (c.x + r < 0 || c.x - r > WORLD_W || c.y + r < 0 || c.y - r > WORLD_H) return;
     const TAU = Math.PI * 2, T = performance.now() / 1000;
@@ -2887,7 +2970,7 @@ function chooseOfflineMap(mapId) {
   // Round / wins / survivors box under the clock (team mode only).
   function updateRoundScore() {
     const box = $('round-score'); if (!box) return;
-    const g = mode === 'offline' ? localGame : null;
+    const g = hudGame();
     if (!g || !g.team || g.zone) { if (!box.hidden) box.hidden = true; return; }
     if (box.hidden) box.hidden = false;
     const my = g.tanks[0].team;
@@ -2903,7 +2986,7 @@ function chooseOfflineMap(mapId) {
   function updateKillBoard() {
     const box = $('kill-board'); if (!box) return;
     const clock = $('match-clock');
-    const g = mode === 'offline' ? localGame : null;
+    const g = hudGame();
     if (!g || !g.team) { if (!box.hidden) box.hidden = true; if (clock && clock.hidden) clock.hidden = false; return; }
     if (box.hidden) box.hidden = false;
     const my = g.tanks[0].team;
@@ -3045,12 +3128,8 @@ function chooseOfflineMap(mapId) {
   function startRenderLoop() {
     if (animationId !== null) return;
     lastFrameTime = performance.now();
-    let lastRenderTime = lastFrameTime;
-    const frameInterval = 1000 / 60;
     const frame = (time) => {
       animationId = requestAnimationFrame(frame);
-      if (time - lastRenderTime < frameInterval) return;
-      lastRenderTime = time - ((time - lastRenderTime) % frameInterval);
       const dt = Math.min(.04, Math.max(0, (time - lastFrameTime) / 1000)); lastFrameTime = time;
       if (screenName !== 'game') { removeCountdownOverlay(); return; }
       fpsFrameCount++;
@@ -3060,11 +3139,12 @@ function chooseOfflineMap(mapId) {
         fpsFrameCount = 0;
         fpsLast = time;
       }
+      const smooth = mode === 'online' && latestSnapshot ? smoothSnapshot(latestSnapshot, (time - latestSnapshotAt) / 1000) : null;
       if (mode === 'offline') {
         updateOffline(dt);
         latestSnapshot = localSnapshot();
       } else if (mode === 'online' && latestSnapshot) {
-        const myTank = findMyTank(latestSnapshot);
+        const myTank = findMyTank(smooth);
         if (myTank && readField(myTank, 'tankAlive') !== false) {
           const pos = readField(myTank, 'tankPos');
           if (pos) updateLocalCamera(pos, dt);
@@ -3083,7 +3163,7 @@ function chooseOfflineMap(mapId) {
         updateKillBoard();
         updateGameplayHud(latestSnapshot);
       }
-      renderSnapshot(latestSnapshot);
+      renderSnapshot(smooth || latestSnapshot);
     };
     animationId = requestAnimationFrame(frame);
   }
@@ -3667,10 +3747,14 @@ function chooseOfflineMap(mapId) {
 
   function matchSeconds() {
     if (mode === 'offline') return localGame ? (localGame.team && !localGame.zone ? localGame.roundClock : localGame.time) : 0;
+    if (mode === 'online' && latestSnapshot) { const c = Number(readField(latestSnapshot, 'wsClock')); if (Number.isFinite(c)) return c; }
     return matchClockStart ? (performance.now() - matchClockStart) / 1000 : 0;
   }
 
-  function matchLimitSeconds() { return mode === 'offline' && localGame && localGame.zone ? Infinity : mode === 'offline' && localGame && localGame.team ? botSettings.teamRoundSeconds : botSettings.matchSeconds; }
+  function matchLimitSeconds() {
+    if (mode === 'online' && latestSnapshot) { const lim = Number(readField(latestSnapshot, 'wsClockLimit')); return lim > 0 ? lim : Infinity; }
+    return mode === 'offline' && localGame && localGame.zone ? Infinity : mode === 'offline' && localGame && localGame.team ? botSettings.teamRoundSeconds : botSettings.matchSeconds;
+  }
 
   function resetMatchUi() {
     killTracker.clear(); streakTracker.clear(); lastKnownStreak.clear();
@@ -3713,9 +3797,10 @@ function chooseOfflineMap(mapId) {
     setText('kda-points', `SCORE: ${st.points}`);
     const streak = $('kda-streak');
     if (streak) { streak.hidden = st.streak < 1; setText('kda-streak', `CHUỖI: ${st.streak}`); }
-    const zoneClock = mode === 'offline' && !!localGame && !!localGame.zone;   // control zone: no time limit, the clock counts up like the zone timer
+    const hg = hudGame();
+    const zoneClock = !!hg && !!hg.zone;   // control zone: no time limit, the clock counts up like the zone timer
     const remainingMatch = zoneClock ? Infinity : Math.max(0, matchLimitSeconds() - matchSeconds());
-    setText('match-clock', zoneClock ? formatClock(localGame.zone.elapsed) : formatClock(Math.ceil(remainingMatch)));
+    setText('match-clock', zoneClock ? formatClock(hg.zone.elapsed) : formatClock(Math.ceil(remainingMatch)));
     const clockEl = $('match-clock');
     if (clockEl) clockEl.classList.toggle('low', remainingMatch <= 30);
     // One-minute warning: the moment the clock reads 1:00 the banner shows at once and the 1mincountdown soundtrack
@@ -4069,13 +4154,7 @@ function chooseOfflineMap(mapId) {
   // ---------------------------------------------------------------- event wiring (each handler registered once)
 
   $('online-button').addEventListener('click', connectOnline);
-  $('tank-name').addEventListener('keydown', e => { if (e.key === 'Enter') confirmTankSelection(); });
-  $('change-name').addEventListener('click', () => {
-    if (ws || mode === 'online') closeSocket();
-    setError('tank-select-error', '');
-    openTankSelect('home');
-    $('tank-name').focus();
-  });
+  $('player-name').addEventListener('keydown', e => { if (e.key === 'Enter') connectOnline(); });
   $('server-url').addEventListener('keydown', e => { if (e.key === 'Enter') connectOnline(); });
   $('main-exit').addEventListener('click', quitGame);
 
@@ -4291,20 +4370,7 @@ function chooseOfflineMap(mapId) {
     mode = 'none';
     showScreen('home');
   });
-  $('practice-button').addEventListener('click', () => {
-    // Name and tank loadout are confirmed on the first screen; keep that choice
-    // and continue straight to the offline room settings from the home menu.
-    if (!tankLoadoutConfirmed) {
-      const savedName = localStorage.getItem('tankwar-name')?.trim();
-      if (savedName) {
-        username = savedName;
-        displayName = savedName;
-        setText('current-player-name', savedName);
-      }
-      tankLoadoutConfirmed = true;
-    }
-    openMapSelect();
-  });
+  $('practice-button').addEventListener('click', () => openTankSelect('offline'));
   $('create-button').addEventListener('click', createRoom);
   $('room-mode').addEventListener('change', syncCustomRoomPlayerOptions);
   $('max-players').addEventListener('change', syncCustomRoomPlayerOptions);
@@ -4323,31 +4389,9 @@ function chooseOfflineMap(mapId) {
   $('leave-room').addEventListener('click', () => { if (wsReady && activeRoom) sendMessage('CLeaveRoom'); else { activeRoom = null; showScreen('lobby'); } });
   $('lobby-back').addEventListener('click', () => { if (activeRoom) sendMessage('CLeaveRoom'); else { closeSocket(); showScreen('home'); } });
   $('copy-room-code').addEventListener('click', async () => {
-    const code = $('room-code').textContent.trim();
-    if (!/^[A-Z0-9]{6}$/.test(code)) return;
-    let copied = false;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(code);
-        copied = true;
-      }
-    } catch (_) { /* Use the compatibility fallback below. */ }
-    if (!copied) {
-      const temporary = document.createElement('textarea');
-      temporary.value = code;
-      temporary.setAttribute('readonly', '');
-      temporary.style.position = 'fixed';
-      temporary.style.left = '-9999px';
-      document.body.append(temporary);
-      temporary.select();
-      try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
-      temporary.remove();
-    }
-    if (copied) {
-      const button = $('copy-room-code');
-      button.textContent = 'ĐÃ SAO CHÉP';
-      setTimeout(() => { if (button.isConnected) button.textContent = 'SAO CHÉP MÃ'; }, 1400);
-    }
+    const code = $('room-code').textContent;
+    try { await navigator.clipboard.writeText(code); $('copy-room-code').textContent = '✓'; setTimeout(() => $('copy-room-code').textContent = '⧉', 900); }
+    catch (_) { $('join-id').value = code; }
   });
   $('overlay-action').addEventListener('click', () => { const action = roundOverlayAction; hideOverlay(); if (action) action(); });
   document.addEventListener('pointerdown', unlockAudio, { once: true });
@@ -4392,8 +4436,7 @@ function chooseOfflineMap(mapId) {
   }
 
   // Small defaults are remembered locally for the next session.
-  $('tank-name').value = localStorage.getItem('tankwar-name') || '';
-  setText('current-player-name', $('tank-name').value || 'CHƯA ĐẶT TÊN');
+  $('player-name').value = localStorage.getItem('tankwar-name') || '';
   const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const pageHost = window.location.hostname || 'localhost';
   // Local static development servers use a separate game server on port 8081.
