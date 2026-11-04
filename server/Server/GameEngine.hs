@@ -165,9 +165,9 @@ tickInGame ss db store roomId room = do
   -- Bước 5: Va chạm đạn - xe tăng (điểm, chuỗi hạ, hồi sinh, không bắn nhầm đồng đội)
   (tanks4, bullets3, killEvents) <- processBulletTankCollisions teamMode respawnSecs tanks3 bullets2
 
-  -- Bước 6: Va chạm đạn - Mystery Box
-  (boxes1, bullets4, boxEvents) <-
-    processBulletBoxCollisions (rsMysteryBoxes room) bullets3 tanks4
+  -- Bước 6: Người chơi nhặt Mystery Box khi xe tăng chạm vào hộp.
+  let (boxes1, boxEvents) = processTankBoxCollisions (rsMysteryBoxes room) tanks4
+      bullets4 = bullets3
 
   -- Bước 7: Cập nhật Mystery Box timer & spawn
   (boxes2, boxTimer') <- updateMysteryBoxTimer dt (rsBoxTimer room) boxes1 maze
@@ -581,41 +581,34 @@ processBulletTankCollisions teamMode respawnSecs tanks bullets = do
         && maybe False (\o -> tankTeam o == tankTeam t) (Map.lookup (bulOwnerId bul) tks)
 
 --------------------------------------------------------------------------------
--- Va chạm Đạn - Mystery Box
+-- Nhặt Mystery Box bằng va chạm xe tăng
 --------------------------------------------------------------------------------
 
-processBulletBoxCollisions :: [MysteryBox] -> [Bullet] -> Map Text Tank
-                          -> IO ([MysteryBox], [Bullet], [(Text, BulletType)])
-processBulletBoxCollisions boxes bullets tanks = do
-  let (boxes', bullets', events) = foldl checkBulletBox (boxes, [], []) bullets
-  return (boxes', bullets', events)
+processTankBoxCollisions :: [MysteryBox] -> Map Text Tank
+                         -> ([MysteryBox], [(Text, BulletType)])
+processTankBoxCollisions boxes tanks =
+  foldl collectBox (boxes, []) (Map.elems tanks)
   where
-    checkBulletBox (bxs, buls, evts) bul =
-      case findHitBox bul bxs of
-        Nothing -> (bxs, bul : buls, evts)
-        Just idx -> do
-          let -- Xoá box bị phá
-              bxs' = removeAt idx bxs
-              -- Chọn loại đạn ngẫu nhiên cho người bắn
-              -- (Trong phiên bản đồng bộ, dùng deterministic random)
-              btype = randomBulletType (floor $ vx (bulPos bul))
-              evts' = evts ++ [(bulOwnerId bul, btype)]
-          -- Lưu ý: Không thể dùng IO ở đây vì fold thuần
-          -- Thay vào đó dùng pseudo-random từ vị trí đạn
-          (bxs', buls, evts')
+    collectBox (remaining, events) tank
+      | not (tankAlive tank) = (remaining, events)
+      | otherwise =
+          case findHitBox tank remaining of
+            Nothing -> (remaining, events)
+            Just (idx, box) ->
+              let reward = randomBulletType (floor (vx (mbPos box) + vy (mbPos box)))
+              in (removeAt idx remaining, events ++ [(tankId tank, reward)])
 
-    findHitBox bul bxs =
+    findHitBox tank bxs =
       let hits = [ i | (i, box) <- zip [0..] bxs
                      , mbActive box
-                     , vec2Dist (bulPos bul) (mbPos box) < (bulletRadius + boxRadius)
+                     , vec2Dist (tankPos tank) (mbPos box) < (tankRadius + boxRadius)
                  ]
       in case hits of
-        (i:_) -> Just i
+        (i:_) -> Just (i, bxs !! i)
         []    -> Nothing
 
     removeAt idx xs = take idx xs ++ drop (idx + 1) xs
 
-    -- Pseudo-random dựa trên hash vị trí (deterministic cho replay)
     randomBulletType seed =
       let btypes = [ShotgunBullet, LaserBullet, WallPiercingBullet, GatlingBullet]
       in btypes !! (abs seed `mod` length btypes)
@@ -702,7 +695,11 @@ handleMatchOver ss db store roomId winner scores room = do
   atomically $ modifyRoom ss roomId $ \r -> r
     { rsPhase = MatchOverPhase winner }
 
-  broadcastToRoom ss roomId (SMatchOver winner scores)
+  let playerStats =
+        [ (tankId t, tankKills t, tankDeaths t)
+        | t <- Map.elems (rsTanks room)
+        ]
+  broadcastToRoom ss roomId (SMatchOver winner scores playerStats)
 
   -- Ghi kết quả vào MongoDB
   let playerRecords =

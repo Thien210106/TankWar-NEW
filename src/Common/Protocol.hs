@@ -123,8 +123,8 @@ data ServerMessage
   | SRoundEnd !Text ![(Text, Int)]
     -- ^ (Người thắng round, bảng điểm [(username, score)])
 
-  | SMatchOver !Text ![(Text, Int)]
-    -- ^ (Người thắng chung cuộc, bảng điểm cuối cùng)
+  | SMatchOver !Text ![(Text, Int)] ![(Text, Int, Int)]
+    -- ^ (Người thắng, bảng điểm [(username, points)], thống kê [(username, kills, deaths)])
 
   | SKillEvent !Text !Text
     -- ^ (Người giết, Người bị giết) — để hiển thị kill feed

@@ -1219,9 +1219,10 @@
         const values = Array.isArray(data) ? data : [data];
         const winner = values[0] || 'Chưa xác định';
         const scores = Array.isArray(values[1]) ? values[1] : [];
+        const matchStats = Array.isArray(values[2]) ? values[2] : [];
         const mineTank = latestSnapshot ? findMyTank(latestSnapshot) : null;
         const mineStats = mineTank ? tankStats(mineTank) : null;
-        const pointBoard = latestSnapshot ? scoreboardEntries(latestSnapshot).map(e => [e.id, e.points]) : [];
+        const myFinalStats = matchStats.find(([name]) => isMe(name));
         const winTeam = onlineDraft && onlineDraft.teams && onlineDraft.teams[winner];
         const myTeamEnd = onlineDraft && onlineDraft.teams && onlineDraft.teams[username];
         const onlineWon = winner === username || (!!myTeamEnd && winTeam === myTeamEnd);
@@ -1229,9 +1230,10 @@
         showEndSplash(onlineWon ? 'win' : 'lose', () => showPostMatch({
           title: onlineWon ? 'CHIẾN THẮNG' : 'TRẬN ĐẤU KẾT THÚC',
           summary: `${winner} là người chiến thắng chung cuộc.`,
-          kills: mineStats ? mineStats.kills : 0, score: mineStats ? mineStats.points : 0,
+          kills: myFinalStats ? myFinalStats[1] : mineStats ? mineStats.kills : 0,
+          score: myFinalStats ? (scores.find(([name]) => isMe(name)) || [null, mineStats ? mineStats.points : 0])[1] : mineStats ? mineStats.points : 0,
           map: (localMap && localMap.label) || 'CHIẾN TRƯỜNG',
-          scores: pointBoard.length ? pointBoard : scores
+          scores, matchStats
         }));
         addFeed(`Chiến thắng chung cuộc: ${winner}`, 'warn'); break;
       }
@@ -1258,7 +1260,7 @@
 
   // ---------------------------------------------------------------- results
 
-  function showPostMatch({ title, kills = 0, score = 0, map = 'FOREST', scores = [], players = null, report = null }) {
+  function showPostMatch({ title, kills = 0, score = 0, map = 'FOREST', scores = [], matchStats = [], players = null, report = null }) {
     // The match is over: stop and clear every kill notification (banner, voice queue, kill feed).
     resetAnnouncements();
     clearTimeout(bannerTimer);
@@ -1283,7 +1285,11 @@
       frame.src = index === 0 ? 'assets/menu/hangnhat.png' : 'assets/menu/nguoikhac.png';
       const rank = document.createElement('span'); rank.textContent = String(index + 1).padStart(2, '0');
       const player = document.createElement('span'); player.textContent = name || 'TANK PILOT';
-      const value = document.createElement('strong'); value.textContent = `${Number(points || 0)} PTS`;
+      const stats = matchStats.find(([playerName]) => playerName === name);
+      const value = document.createElement('strong');
+      value.textContent = stats
+        ? `${Number(stats[1] || 0)}/${Number(stats[2] || 0)} K/D · ${Number(points || 0)} PTS`
+        : `${Number(points || 0)} PTS`;
       row.append(frame, rank, player, value); board.append(row);
     });
     // Offline modes (free-for-all, 2v2, 3v3, 4v4, 5v5) get the detailed LoL / AOV style report.
