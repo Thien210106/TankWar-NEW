@@ -13,11 +13,10 @@ import Common.Types (BulletType(..))
 tickRate :: Int
 tickRate = 60
 
--- | Số snapshot gửi tới mỗi client mỗi giây. Vật lý vẫn chạy 'tickRate' Hz,
--- nhưng không cần gửi lại toàn bộ mê cung 60 lần/giây. 30Hz giữ hình ảnh mượt
--- trong khi giảm một nửa tải WebSocket, đặc biệt quan trọng qua Internet.
+-- | Số snapshot gửi tới mỗi client mỗi giây. Đặt bằng 'tickRate' để client
+-- nhận trạng thái mới ở mọi tick; 30 Hz làm hình ảnh chỉ còn 30 fps.
 snapshotRate :: Int
-snapshotRate = 30
+snapshotRate = 60
 
 -- | Số tick vật lý giữa hai snapshot mạng. Luôn ít nhất một tick để cấu hình
 -- vẫn an toàn nếu snapshotRate được thay đổi.
@@ -205,3 +204,82 @@ mongoDbName = "TankWar"
 -- | Khoảng thời gian ping WebSocket (giây).
 wsPingInterval :: Int
 wsPingInterval = 30
+
+--------------------------------------------------------------------------------
+-- Luật chơi online (đồng bộ với chế độ offline trong web/app.js)
+--------------------------------------------------------------------------------
+
+-- | Thời gian chờ hồi sinh (giây). Đấu đội không hồi sinh trong cùng một round.
+respawnSeconds :: Float
+respawnSeconds = 5.0
+
+-- | Thời gian bất tử sau khi hồi sinh (giây).
+invulnerableSeconds :: Float
+invulnerableSeconds = 1.5
+
+-- | Điểm cho mỗi giây còn sống.
+survivalPointsPerSecond :: Int
+survivalPointsPerSecond = 3
+
+-- | Điểm cho mỗi lần hạ đối thủ.
+killPoints :: Int
+killPoints = 10
+
+-- | Điểm thưởng khi chặn đứng chuỗi hạ liên tiếp của đối thủ.
+shutdownBonus :: Int
+shutdownBonus = 20
+
+-- | Số mạng hạ liên tiếp để được tính là một chuỗi (shutdown).
+streakStartKills :: Int
+streakStartKills = 3
+
+-- | Thời lượng trận Tử chiến (giây).
+deathmatchSeconds :: Float
+deathmatchSeconds = 300.0
+
+-- | Số round tối đa của Đấu đội (thắng quá nửa số round là thắng trận).
+teamRounds :: Int
+teamRounds = 5
+
+-- | Thời lượng một round Đấu đội (giây).
+teamRoundSeconds :: Float
+teamRoundSeconds = 120.0
+
+-- | Thời gian hiển thị kết quả round Đấu đội (giây).
+teamRoundEndDelay :: Float
+teamRoundEndDelay = 5.0
+
+-- | Bán kính vùng chiếm Cấm Địa (pixel).
+zoneRadius :: Float
+zoneRadius = 480.0
+
+-- | Thời gian vùng chiếm bị khoá lúc đầu trận (giây).
+zoneLockSeconds :: Float
+zoneLockSeconds = 10.0
+
+-- | Thời gian để một đội chiếm đủ 100% (giây).
+zoneCaptureSeconds :: Float
+zoneCaptureSeconds = 300.0
+
+-- | Hệ số tốc độ khi đội đạt từ 70%.
+zoneSpeedAt70 :: Float
+zoneSpeedAt70 = 1.1
+
+-- | Hệ số tốc độ của đội còn dưới 50% khi đội kia đã đạt 50%.
+zoneSpeedBehindAt50 :: Float
+zoneSpeedBehindAt50 = 1.2
+
+-- | Thời gian áp đảo liên tục để thắng khi cả hai đội cùng 99%.
+zoneContestSeconds :: Float
+zoneContestSeconds = 5.0
+
+-- | Tầm bay tối đa của đạn (pixel) = 30% kích thước bản đồ 4096.
+bulletRange :: Float
+bulletRange = 1228.8
+
+-- | Bán kính trúng đạn của xe tăng và của viên đạn (chỉ dùng cho va chạm đạn).
+tankHitRadius :: Float
+tankHitRadius = 36.0
+
+bulletHitRadius :: Float
+bulletHitRadius = 14.0

@@ -109,7 +109,7 @@ handleLogin ss db store conn username displayName = do
   if not registered
     then WS.sendTextData conn $ encode
            (SLoginError $ "Username '" <> username <> "' đã đang online!")
-    else (do
+    else do
       -- Tạo hồ sơ trong MongoDB nếu chưa có
       maybePlayer <- findPlayer db username
       case maybePlayer of
@@ -129,10 +129,8 @@ handleLogin ss db store conn username displayName = do
       -- Bắt đầu vòng lặp nhận message từ client
       clientLoop ss db store username
         `catch` (\e -> putStrLn $ "[WS] " ++ show username
-                    ++ " ngắt kết nối: " ++ show (e :: SomeException)))
-      `catch` (\e -> putStrLn $ "[Auth] Khởi tạo phiên " ++ show username
-                    ++ " thất bại: " ++ show (e :: SomeException))
-      `finally` handleDisconnect ss username
+                    ++ " ngắt kết nối: " ++ show (e :: SomeException))
+        `finally` handleDisconnect ss username
 
 --------------------------------------------------------------------------------
 -- Vòng lặp nhận message từ Client
@@ -177,6 +175,9 @@ handleClientMessage ss db store username = \case
   CMapVote mapId ->
     handleMapVote ss username mapId
 
+  CSetLoadout hull gun ->
+    handleSetLoadout ss username hull gun
+
   CLeaveRoom ->
     handleLeaveRoom ss username
 
@@ -192,7 +193,7 @@ handleClientMessage ss db store username = \case
         maybeRoomId <- atomically $ getClientRoom ss username
         case maybeRoomId of
           Nothing  -> pure ()
-          Just roomId -> startRoomGameLoop ss db roomId
+          Just roomId -> startRoomGameLoop ss db store roomId
 
   CPlayerInput input -> do
     -- Cập nhật input vào state của phòng

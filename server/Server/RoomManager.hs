@@ -11,6 +11,7 @@ module Server.RoomManager
   , handleTankReady
   , handleChooseTeam
   , handleMapVote
+  , handleSetLoadout
   , handleListRooms
   , generateRoomId
   , generateMaze
@@ -26,13 +27,14 @@ import Data.Text               (Text, pack, unpack)
 import Data.Time.Clock         (getCurrentTime)
 import Data.Time.Format        (formatTime, defaultTimeLocale)
 import System.Random           (randomRIO)
-import Control.Monad           (unless)
+import Control.Monad           (when, unless)`r`nimport Data.Char               (isDigit)
 import Data.Aeson              (FromJSON(..), Value, eitherDecodeFileStrict', object, withObject, (.:), (.=))
 
 import Common.Types
 import Common.Config
 import Common.Protocol
 import Server.State
+import Common.GameRules       (assignTeams, teamSpawnPositions, initialZone, resetTankForRound)
 
 --------------------------------------------------------------------------------
 -- Tạo phòng mới
@@ -88,6 +90,9 @@ handleCreateRoom ss username roomName maxP password requestedMode = do
             , rsRoundNumber  = 0
             , rsStartTime    = startTime
             , rsBoxTimer     = 0
+            , rsMatchClock   = 0
+            , rsTeamWins     = [0, 0]
+            , rsZone         = Nothing
             }
 
       atomically $ do
@@ -127,15 +132,12 @@ handleJoinRoom ss username roomId password = do
                 else do
                   -- Kiểm tra đang trong trận
                   case rsPhase room of
-                    LobbyPhase -> do
-                      joined <- doJoin ss username room
-                      unless joined $
-                        sendToClient ss username (SRoomError "Phòng đã thay đổi hoặc đã đầy, hãy thử lại.")
+                    LobbyPhase -> doJoin ss username room
                     _          -> sendToClient ss username
                                    (SRoomError "Trận đấu đã bắt đầu, không thể vào!")
 
 -- | Thực hiện join: thêm người chơi vào phòng.
-doJoin :: ServerState -> Text -> RoomState -> IO Bool
+doJoin :: ServerState -> Text -> RoomState -> IO ()
 doJoin ss username room = do
   let rid       = rsRoomId room
       playerIdx = length (rsPlayerIds room)
@@ -148,35 +150,26 @@ doJoin ss username room = do
   let spawnPt   = if null availSpawns then Vec2 100 100 else availSpawns !! pickIdx
       tank      = mkTank username spawnPt color
 
-  joined <- atomically $ do
-    latestRoom <- getRoom ss rid
-    currentRoom <- getClientRoom ss username
-    case latestRoom of
-      Just latest | currentRoom == Nothing
-                  , username `notElem` rsPlayerIds latest
-                  , rsPhase latest == LobbyPhase
-                  , length (rsPlayerIds latest) < rsMaxPlayers latest -> do
-        modifyRoom ss rid $ \r -> r
-          { rsPlayerIds = rsPlayerIds r ++ [username]
-          , rsTanks     = Map.insert username tank (rsTanks r)
-          , rsInputs    = Map.insert username emptyInput (rsInputs r)
-          }
-        setClientRoom ss username rid
-        pure True
-      _ -> pure False
-  if not joined then pure False else do
-    updatedRoom <- atomically $ getRoom ss rid
-    case updatedRoom of
-      Nothing -> pure True
-      Just r  -> do
-        let info = roomToInfo r
-        sendToClient ss username (SRoomJoined info)
-        let roster = [(pid, maybe TankBlue tankColor (Map.lookup pid (rsTanks r))) | pid <- rsPlayerIds r]
-        sendToClient ss username (SRoomRoster roster)
-        broadcastToRoom ss rid (SPlayerJoined username color)
-        broadcastDraft ss rid
-        putStrLn $ "[Room] " ++ show username ++ " vào phòng " ++ show rid
-        pure True
+  atomically $ do
+    modifyRoom ss rid $ \r -> r
+      { rsPlayerIds = rsPlayerIds r ++ [username]
+      , rsTanks     = Map.insert username tank (rsTanks r)
+      , rsInputs    = Map.insert username emptyInput (rsInputs r)
+      }
+    setClientRoom ss username rid
+
+  updatedRoom <- atomically $ getRoom ss rid
+  case updatedRoom of
+    Nothing -> return ()
+    Just r  -> do
+      let info = roomToInfo r
+      sendToClient ss username (SRoomJoined info)
+      let roster = [(pid, maybe TankBlue tankColor (Map.lookup pid (rsTanks r))) | pid <- rsPlayerIds r]
+      sendToClient ss username (SRoomRoster roster)
+      -- Thông báo cho người chơi khác
+      broadcastToRoom ss rid (SPlayerJoined username color)
+      broadcastDraft ss rid
+      putStrLn $ "[Room] " ++ show username ++ " vào phòng " ++ show rid
 
 --------------------------------------------------------------------------------
 -- Rời phòng
@@ -281,6 +274,22 @@ handleMapVote ss username mapId = withLobbyRoom ss username $ \rid room ->
         { rsVotes = Map.insert username mapId (rsVotes r), rsDraftStage = "map" }
       broadcastDraft ss rid
 
+-- | Lưu thân xe và nòng pháo người chơi đã chọn để mọi client vẽ đúng ngoại hình.
+handleSetLoadout :: ServerState -> Text -> Text -> Text -> IO ()
+handleSetLoadout ss username hull gun = withLobbyRoom ss username $ \rid _ ->
+  if validPart hull && validPart gun
+    then atomically $ modifyRoom ss rid $ \r -> r
+      { rsTanks = Map.adjust (\t -> t { tankHull = hull, tankGun = gun }) username (rsTanks r) }
+    else sendToClient ss username (SRoomError "Ngoại hình xe không hợp lệ.")
+  where
+    validPart p = let str = unpack p in length str == 2 && all isDigit str
+
+-- | Một phòng đấu đội mà chỉ có một phe (sau khi tự cân bằng) thì không bắt đầu được.
+teamsUnbalanced :: [Text] -> Map Text Text -> Bool
+teamsUnbalanced pids chosen =
+  let assigned = Map.elems (assignTeams pids chosen)
+  in all (== 0) assigned || all (== 1) assigned
+
 withLobbyRoom :: ServerState -> Text -> (Text -> RoomState -> IO ()) -> IO ()
 withLobbyRoom ss username action = do
   maybeRid <- atomically $ getClientRoom ss username
@@ -324,57 +333,72 @@ handleStartGame ss username = do
         Just room
           | rsHostPlayer room /= username ->
               sendToClient ss username (SRoomError "Chỉ chủ phòng mới được bắt đầu!") >> pure False
+          | rsPhase room /= LobbyPhase ->
+              sendToClient ss username (SRoomError "Trận đang diễn ra!") >> pure False
           | length (rsPlayerIds room) < minPlayersToStart ->
               sendToClient ss username
                 (SRoomError $ "Cần ít nhất " <> pack (show minPlayersToStart) <> " người chơi!")
                 >> pure False
+          | rsGameMode room /= "deathmatch"
+          , teamsUnbalanced (rsPlayerIds room) (rsTeams room) ->
+              sendToClient ss username (SRoomError "Mỗi đội cần ít nhất 1 người chơi!") >> pure False
           | otherwise -> do
               let pids = rsPlayerIds room
-                  votedMap = case Map.toList (rsVotes room) of
-                    [] -> "forest"
-                    votes -> let counts = Map.fromListWith (+) [(m, 1 :: Int) | (_, m) <- votes]
-                                 best = maximum (Map.elems counts)
-                             in fst (head (filter ((== best) . snd) (Map.toList counts)))
-              selectedMap <- if votedMap == "random"
+                  mapPool = ["forest", "ruins", "depot"] :: [Text]
+                  votes = Map.elems (rsVotes room)
+              -- Mỗi người một phiếu: chọn NGẪU NHIÊN một phiếu trong số các phiếu
+              -- đã bỏ (map được nhiều phiếu có xác suất cao hơn). Không có phiếu
+              -- hoặc phiếu "random" thì chọn ngẫu nhiên trong toàn bộ danh sách map.
+              pickedVote <- if null votes
+                then pure "random"
+                else do
+                  voteIdx <- randomRIO (0, length votes - 1)
+                  pure (votes !! voteIdx)
+              selectedMap <- if pickedVote == "random"
                 then do
-                  idx <- randomRIO (0, 2 :: Int)
-                  pure (["forest", "ruins", "depot"] !! idx)
-                else pure votedMap
+                  idx <- randomRIO (0, length mapPool - 1)
+                  pure (mapPool !! idx)
+                else pure pickedVote
               newMaze <- generateTrainingMaze selectedMap
               shuffledSpawns <- shuffleList (mazeSpawnPts newMaze)
-              let tanks' = Map.fromList
-                    [ (pid, (rsTanks room Map.! pid)
-                        { tankPos = if idx < length shuffledSpawns
-                                    then shuffledSpawns !! idx else Vec2 100 100
-                        , tankVel = vec2Zero
-                        , tankWeapon = defaultWeaponState
-                        , tankAmmo = tankMaxAmmo (rsTanks room Map.! pid)
-                        , tankReloadTimer = 0
-                        , tankAlive = True
-                        })
-                    | (idx, pid) <- zip [0..] pids
-                    ]
-              started <- atomically $ do
-                latest <- getRoom ss rid
-                case latest of
-                  Just current | rsPhase current == LobbyPhase
-                               , rsHostPlayer current == username
-                               , rsPlayerIds current == pids -> do
-                    modifyRoom ss rid $ \r -> r
-                      { rsMaze = newMaze
-                      , rsMapId = selectedMap
-                      , rsTanks = tanks'
-                      , rsPhase = CountdownPhase countdownDuration
-                      }
-                    pure True
-                  _ -> pure False
-              if started
-                then do
-                  broadcastToRoom ss rid (SCountdown countdownDuration)
-                  broadcastToRoom ss rid (SSelectedMap selectedMap)
-                  putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
-                else sendToClient ss username (SRoomError "Phòng đã thay đổi; hãy thử bắt đầu lại.")
-              pure started
+              let mode    = rsGameMode room
+                  teamed  = mode /= "deathmatch"
+                  teamMap = assignTeams pids (rsTeams room)
+                  basePos = teamSpawnPositions newMaze teamMap pids
+                  posFor :: Int -> Text -> Vec2
+                  posFor idx pid
+                    | teamed, Just p <- Map.lookup pid basePos = p
+                    | idx < length shuffledSpawns = shuffledSpawns !! idx
+                    | otherwise = Vec2 100 100
+                  freshTank idx pid =
+                    let base = resetTankForRound (posFor idx pid) (rsTanks room Map.! pid)
+                        team = if teamed then Map.findWithDefault 0 pid teamMap else -1
+                    in base
+                         { -- Reset chỉ số khi bắt đầu trận mới (chơi lại cùng phòng)
+                           tankScore = 0
+                         , tankKills = 0
+                         , tankDeaths = 0
+                         , tankPoints = 0
+                         , tankKillStreak = 0
+                         , tankTeam = team
+                         , tankColor = if not teamed then tankColor base
+                                       else if team == 0 then TankBlue else TankRed
+                         }
+                  tanks' = Map.fromList [ (pid, freshTank idx pid) | (idx, pid) <- zip [0 ..] pids ]
+              atomically $ modifyRoom ss rid $ \r -> r
+                { rsMaze = newMaze
+                , rsMapId = selectedMap
+                , rsTanks = tanks'
+                , rsPhase = CountdownPhase countdownDuration
+                , rsRoundNumber = 1
+                , rsMatchClock = 0
+                , rsTeamWins = [0, 0]
+                , rsZone = if mode == "zone" then Just (initialZone newMaze) else Nothing
+                }
+              broadcastToRoom ss rid (SCountdown countdownDuration)
+              broadcastToRoom ss rid (SSelectedMap selectedMap)
+              putStrLn $ "[Game] Phòng " ++ show rid ++ " bắt đầu countdown với mê cung mới!"
+              pure True
 
 -- | Only the room host can choose the map before a match. The current room
 -- flow already uses votes, so the host's explicit choice is stored as its
@@ -496,6 +520,9 @@ mkTank pid spawnPos color = Tank
   , tankMaxAmmo     = magazineSize
   , tankReloadTimer = 0
   , tankSurvivalCarry = 0
+  , tankHull        = "05"
+  , tankGun         = "05"
+  , tankTeam        = -1
   }
 
 --------------------------------------------------------------------------------
